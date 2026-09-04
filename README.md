@@ -49,13 +49,6 @@ Both values come from your Hardal dashboard. Requires Node.js 20 or newer; `npx`
 
 All three are read-only, and all take an optional `start_date`/`end_date` (defaulting to the last 30 days).
 
-## Development
-
-```bash
-npm install
-npm test
-```
-
 ## License
 
 MIT — see [LICENSE](./LICENSE).
