@@ -1,0 +1,35 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "name": "io.github.usehardal/hardal",
+  "description": "Query Hardal web analytics — traffic overview, event counts, sessions, and campaign attribution.",
+  "status": "active",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/usehardal/mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://usehardal.com",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "usehardal-mcp",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "HARDAL_SIGNAL_ID",
+          "description": "Signal ID from your Hardal dashboard.",
+          "isRequired": true
+        },
+        {
+          "name": "HARDAL_SIGNAL_TOKEN",
+          "description": "Signal token from your Hardal dashboard.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

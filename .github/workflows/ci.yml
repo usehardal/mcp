@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # package.json declares engines.node >= 20; test the boundary and current.
+        node: ['20', '22', '24']
+    name: node ${{ matrix.node }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # `npm ci` runs the `prepare` script, which builds — so a type error fails here.
+      - run: npm ci
+
+      - run: npm test
+
+      # Catches a tool file that was deleted from src but left registered, or a
+      # dist/ artifact that would ship broken: the packed tarball must actually boot.
+      - name: Smoke-test the built server over stdio
+        env:
+          HARDAL_SIGNAL_ID: ci-smoke-id
+          HARDAL_SIGNAL_TOKEN: ci-smoke-token
+        run: |
+          printf '%s\n' \
+            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+            '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+            | node dist/index.js > out.jsonl
+          grep -q '"serverInfo"' out.jsonl || { echo "initialize produced no serverInfo"; cat out.jsonl; exit 1; }
+          for tool in get_analytics_overview get_analytics_event_counts get_top_campaigns; do
+            grep -q "\"$tool\"" out.jsonl || { echo "missing tool: $tool"; cat out.jsonl; exit 1; }
+          done
+          echo "stdio smoke test passed: all 3 tools registered"
+
+      - name: Verify the published tarball contents
+        run: npm pack --dry-run

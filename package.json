@@ -1,0 +1,49 @@
+{
+  "name": "usehardal-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for querying Hardal (usehardal.com) analytics data via its Analytics API",
+  "type": "module",
+  "bin": {
+    "usehardal-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "PRIVACY.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "postbuild": "chmod +x dist/index.js",
+    "prepare": "npm run build",
+    "test": "npm run build && node --test $(find dist -name '*.test.js')",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "hardal",
+    "analytics"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usehardal/mcp.git"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "^7.0.2"
+  },
+  "bugs": {
+    "url": "https://github.com/usehardal/mcp/issues"
+  },
+  "homepage": "https://usehardal.com"
+}
