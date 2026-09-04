@@ -31,5 +31,11 @@
         }
       ]
     }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.usehardal.com/mcp"
+    }
   ]
 }
