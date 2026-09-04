@@ -31,6 +31,7 @@ export function registerTopCampaignsTool(server: McpServer, client: AnalyticsApi
       title: 'Get Top Hardal Campaigns',
       description:
         'Rank marketing campaigns/channels by a chosen metric over a date range, from the Analytics API Campaign Report.',
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
       inputSchema: {
         start_date: z.string().optional().describe('YYYY-MM-DD. Defaults to 30 days before end_date.'),
         end_date: z.string().optional().describe('YYYY-MM-DD. Defaults to today.'),

@@ -9,9 +9,7 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE",
-    "SECURITY.md",
-    "PRIVACY.md"
+    "LICENSE"
   ],
   "engines": {
     "node": ">=20"

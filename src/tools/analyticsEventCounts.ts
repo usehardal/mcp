@@ -27,6 +27,7 @@ export function registerAnalyticsEventCountsTool(server: McpServer, client: Anal
         'Fetch aggregated event counts (event count, sessions, visitors) per event name over a date range, ' +
         'sorted by count descending. Use this to answer "which events fire, and how often" — for a broad ' +
         'overview of a period, `get_analytics_overview` is usually the better first call.',
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
       inputSchema: {
         start_date: z.string().optional().describe('YYYY-MM-DD. Defaults to 30 days before end_date.'),
         end_date: z.string().optional().describe('YYYY-MM-DD. Defaults to today.'),

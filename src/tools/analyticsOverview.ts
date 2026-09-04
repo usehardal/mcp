@@ -56,6 +56,7 @@ export function registerAnalyticsOverviewTool(server: McpServer, client: Analyti
         'starting point for any "what happened" question — prefer it over the more specialised tools. ' +
         'Note: a wide date range at `interval: "minute"` or `"hour"` returns a very large response; leave ' +
         '`interval` unset (daily) unless the question genuinely needs finer granularity.',
+      annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
       inputSchema: {
         start_date: z.string().optional().describe('YYYY-MM-DD. Defaults to 30 days before end_date.'),
         end_date: z.string().optional().describe('YYYY-MM-DD. Defaults to today.'),

@@ -49,6 +49,12 @@ Both values come from your Hardal dashboard. Requires Node.js 20 or newer; `npx`
 
 All three are read-only, and all take an optional `start_date`/`end_date` (defaulting to the last 30 days).
 
+## Privacy & Support
+
+Every tool returns aggregates only — counts, totals, rankings, time series — never per-visitor records, so no personal data passes through this server. Nothing is stored or forwarded to any third party.
+
+Questions or a vulnerability to report: **support@usehardal.com**.
+
 ## License
 
 MIT — see [LICENSE](./LICENSE).
