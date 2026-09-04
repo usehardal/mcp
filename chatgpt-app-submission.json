@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "app_info": {
+    "display_name": "Hardal",
+    "subtitle": "Analyze, query, and activate your first-party data",
+    "description": "Query and analyze your Hardal data directly in ChatGPT. Explore first-party attribution, conversions, campaigns, sessions, events, and e-commerce performance. Investigate marketing performance, compare channels, identify attribution gaps, and uncover insights across your customer data.",
+    "category": "Data and Analytics"
+  },
+  "tools": [
+    {
+      "name": "get_analytics_overview",
+      "annotations": { "readOnlyHint": true, "destructiveHint": false, "openWorldHint": false },
+      "justification": "Issues a single GET-style read against the caller's own Hardal Analytics API signal and returns aggregated totals, top pages/referrers/locations, and a time series. It performs no writes, and the only endpoint it can reach is Hardal's own fixed Analytics API for the credentials the caller supplied — never an open or arbitrary external domain."
+    },
+    {
+      "name": "get_analytics_event_counts",
+      "annotations": { "readOnlyHint": true, "destructiveHint": false, "openWorldHint": false },
+      "justification": "Read-only aggregate query (event name, count, sessions, visitors) against the same fixed Hardal Analytics API. No mutation endpoint exists on the wrapped API, and the server issues no writes of its own."
+    },
+    {
+      "name": "get_top_campaigns",
+      "annotations": { "readOnlyHint": true, "destructiveHint": false, "openWorldHint": false },
+      "justification": "Ranks campaigns/channels by a chosen metric from the Analytics API's Campaign Report; a read-only aggregate call against the same closed, well-defined Hardal API, with no side effects."
+    }
+  ],
+  "test_cases": [
+    {
+      "prompt": "What happened on my site over the last 30 days?",
+      "expected_behavior": "Calls get_analytics_overview with no explicit dates (defaults to the trailing 30 days) and summarizes totals, top pages, referrers, and device/browser/OS split from the returned aggregates."
+    },
+    {
+      "prompt": "Which events fired the most yesterday?",
+      "expected_behavior": "Calls get_analytics_event_counts with start_date and end_date both set to yesterday's date, then reports the event names ranked by count descending."
+    },
+    {
+      "prompt": "What are my top 5 campaigns by revenue this month?",
+      "expected_behavior": "Calls get_top_campaigns with metric: \"revenue\" and limit: 5, scoped to the current month, and returns the ranked campaign rows."
+    },
+    {
+      "prompt": "Show me the browser and device breakdown for August 2026.",
+      "expected_behavior": "Calls get_analytics_overview with start_date/end_date spanning August 2026 and summarizes the browserDistribution/deviceDistribution/osDistribution fields from the response."
+    },
+    {
+      "prompt": "Rank my campaigns by conversion rate over the last 30 days.",
+      "expected_behavior": "Calls get_top_campaigns with metric: \"conversionRate\" and the default 30-day range, returning campaigns ordered by conversion rate."
+    }
+  ],
+  "negative_test_cases": [
+    {
+      "prompt": "Delete all my analytics data.",
+      "expected_behavior": "Declines: no tool in this server performs any write or delete. All three tools are read-only against Hardal's Analytics API, which itself exposes no mutation endpoints."
+    },
+    {
+      "prompt": "Email my top campaign's audience a discount code.",
+      "expected_behavior": "Declines: this server has no messaging/email capability and no access to visitor contact information — it only returns aggregate analytics figures."
+    },
+    {
+      "prompt": "What's the weather in Istanbul today?",
+      "expected_behavior": "Declines or clarifies it's out of scope: this server can only answer questions about the caller's own Hardal analytics (traffic, events, campaigns), not general knowledge or external data."
+    }
+  ]
+}
