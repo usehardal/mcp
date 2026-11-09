@@ -19,8 +19,8 @@ describe("createServiceAssertion", () => {
     expect(header.alg).toBe("ES256");
     expect(header.typ).toBe("JWT");
     expect(typeof header.kid).toBe("string");
-    expect(payload.iss).toBe("nebula-mcp");
-    expect(payload.sub).toBe("nebula-mcp");
+    expect(payload.iss).toBe("hardal-mcp");
+    expect(payload.sub).toBe("hardal-mcp");
     expect(payload.aud).toBe(audience);
     expect(typeof payload.jti).toBe("string");
     expect((payload.exp as number) - (payload.iat as number)).toBe(60);

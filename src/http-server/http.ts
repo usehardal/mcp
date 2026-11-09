@@ -17,7 +17,7 @@ export class HttpServer {
     }
 
     this.server = this.app.listen(config.server.port, () => {
-      logger.info(`Nebula MCP ready on port ${config.server.port}`, {
+      logger.info(`Hardal MCP ready on port ${config.server.port}`, {
         issuer: config.oauth.issuer,
         resource: config.oauth.mcpResource,
       });

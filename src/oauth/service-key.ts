@@ -14,15 +14,12 @@ async function readPrivateJwk(): Promise<Record<string, unknown>> {
 
   if (privateJwkVaultUrl) {
     const { DefaultAzureCredential } = await import("@azure/identity");
-    const { SecretClient } = await import("@azure/keyvault-secrets");
-    const url = new URL(privateJwkVaultUrl);
-    const vaultUrl = `${url.protocol}//${url.host}`;
-    const segments = url.pathname.split("/").filter(Boolean);
-    const secretName = segments[segments.length - 1];
-    if (!secretName) throw new Error("SERVICE_PRIVATE_JWK_VAULT_URL must name a secret");
+    const { SecretClient, parseKeyVaultSecretIdentifier } = await import("@azure/keyvault-secrets");
+    const { vaultUrl, name, version } = parseKeyVaultSecretIdentifier(privateJwkVaultUrl);
+    if (!name) throw new Error("SERVICE_PRIVATE_JWK_VAULT_URL must name a secret");
     const client = new SecretClient(vaultUrl, new DefaultAzureCredential());
-    const secret = await client.getSecret(secretName);
-    if (!secret.value) throw new Error(`Key Vault secret ${secretName} is empty`);
+    const secret = await client.getSecret(name, version ? { version } : undefined);
+    if (!secret.value) throw new Error(`Key Vault secret ${name} is empty`);
     return JSON.parse(secret.value) as Record<string, unknown>;
   }
 

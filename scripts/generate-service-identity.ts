@@ -12,7 +12,7 @@ function arg(flag: string): string | undefined {
 
 function defaultKid(): string {
   const today = new Date().toISOString().slice(0, 10);
-  return `nebula-mcp-${today}`;
+  return `hardal-mcp-${today}`;
 }
 
 async function main() {
@@ -46,7 +46,7 @@ async function main() {
     "  DATABASE_URL=<beacon db> bun run scripts/register-oauth-service-identity.ts \\",
   );
   console.info(
-    `    --client-id nebula-mcp --jwk ${publicPath} --operations introspect,token_exchange`,
+    `    --client-id hardal-mcp --name "Hardal MCP" --jwk ${publicPath} --operations introspect,token_exchange`,
   );
 }
 

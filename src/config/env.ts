@@ -9,7 +9,7 @@ const envSchema = z.object({
   MCP_RESOURCE: z.string().url().default("http://localhost:1922/mcp"),
   REPORTS_API_RESOURCE: z.string().url().default("http://localhost:1919/v1"),
 
-  SERVICE_CLIENT_ID: z.string().min(1).default("nebula-mcp"),
+  SERVICE_CLIENT_ID: z.string().min(1).default("hardal-mcp"),
   SERVICE_PRIVATE_JWK_PATH: z.string().optional(),
   SERVICE_PRIVATE_JWK_VAULT_URL: z.string().url().optional(),
 });

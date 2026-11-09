@@ -69,6 +69,7 @@ Register the generated public key with a running Beacon:
 # from the beacon/apps/api checkout
 DATABASE_URL=<beacon db> bun run scripts/register-oauth-service-identity.ts \
   --client-id hardal-mcp \
+  --name "Hardal MCP" \
   --jwk <mcp>/keys/public.jwk.json \
   --operations introspect,token_exchange
 ```

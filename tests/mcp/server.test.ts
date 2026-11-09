@@ -15,7 +15,7 @@ const EXPECTED_TOOLS = [
 async function connectClient() {
   const server = createMcpServer();
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: "nebula-mcp-test", version: "0.0.0" });
+  const client = new Client({ name: "hardal-mcp-test", version: "0.0.0" });
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
   return { server, client };
 }
