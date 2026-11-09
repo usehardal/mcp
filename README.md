@@ -50,6 +50,12 @@ Call `get_context` first to list your workspaces and pick a `tenantId`; the repo
 
 Every tool is read-only and returns aggregates only.
 
+## Timezone
+
+Every report tool accepts an optional `timezone` (an IANA name such as `Europe/Istanbul` or `UTC`). An explicit value always takes precedence. When it is omitted, every tenant defaults to `Europe/Istanbul`, and each answer states the timezone it used in its filters line — so the same question yields the same numbers whether or not you pass it.
+
+V1 has no per-tenant timezone setting. If a workspace's Hardal dashboard is configured for a different timezone, day boundaries — and therefore totals — can differ between the dashboard and MCP answers; pass `timezone` explicitly to match the dashboard.
+
 ## How it works
 
 Hardal MCP signs you in through Hardal's own authorization server (OAuth 2.1): clients discover it via `GET /.well-known/oauth-protected-resource` and a `401` `WWW-Authenticate` challenge. The server validates your token and, to read your reports, exchanges it for a scoped Reports-API token — your token itself never reaches the reporting API. Access is limited to the tenants you consented to, and revoking the connection (or an admin revoking access) stops it on the next request.

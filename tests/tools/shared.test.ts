@@ -40,6 +40,38 @@ describe("buildReportQuery", () => {
     expect(filters.sourceId).toBe("source-1");
   });
 
+  it("resolves an omitted timezone to the same query as explicit Europe/Istanbul across DST dates", () => {
+    const periodsSpanningDstTransitions = [
+      { startDate: "2026-03-27", endDate: "2026-03-30" },
+      { startDate: "2026-10-23", endDate: "2026-10-26" },
+    ];
+    for (const period of periodsSpanningDstTransitions) {
+      const omitted = buildReportQuery({ tenantId: "tenant-1", ...period });
+      const explicit = buildReportQuery({
+        tenantId: "tenant-1",
+        ...period,
+        timezone: DEFAULT_TIMEZONE,
+      });
+      expect(omitted).toEqual(explicit);
+      expect(omitted.query.timezone).toBe("Europe/Istanbul");
+      expect(omitted.query.startDate).toBe(period.startDate);
+      expect(omitted.query.endDate).toBe(period.endDate);
+      expect(filtersLine(omitted.filters)).toContain("timezone: Europe/Istanbul");
+    }
+  });
+
+  it("keeps an explicit DST-observing timezone unchanged across a DST transition", () => {
+    const { query, filters } = buildReportQuery({
+      tenantId: "tenant-1",
+      startDate: "2026-03-27",
+      endDate: "2026-03-30",
+      timezone: "Europe/Berlin",
+    });
+    expect(query.timezone).toBe("Europe/Berlin");
+    expect(filters.timezone).toBe("Europe/Berlin");
+    expect(filtersLine(filters)).toContain("timezone: Europe/Berlin");
+  });
+
   it("omits trafficScope unless the option is provided", () => {
     const without = buildReportQuery({ tenantId: "tenant-1" });
     expect(without.query.trafficScope).toBeUndefined();
