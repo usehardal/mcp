@@ -9,49 +9,76 @@
   <img alt="license" src="https://img.shields.io/badge/license-MIT-141020">
 </p>
 
-An [MCP](https://modelcontextprotocol.io) server for querying your [Hardal](https://usehardal.com) analytics from Claude Desktop, Claude Code, or any other MCP client — ask about traffic, events, and campaigns in plain language instead of digging through a dashboard.
+A remote [MCP](https://modelcontextprotocol.io) server for querying your [Hardal](https://usehardal.com) analytics from Claude, ChatGPT, or any other MCP client — ask about traffic, events, acquisition, funnels, and campaigns in plain language. You sign in with your own Hardal account, and the server only ever sees the workspaces you approve.
 
-## Setup
+## Connect
 
-Add this to your MCP client config — `claude_desktop_config.json` for Claude Desktop (macOS: `~/Library/Application Support/Claude/`, Windows: `%APPDATA%\Claude\`), or a project-level `.mcp.json` for Claude Code:
+The server is hosted — there is nothing to install. Add it as a remote (streamable-HTTP) MCP server:
+
+```
+https://mcp.usehardal.com/mcp
+```
+
+- **Claude (web, Desktop, Code) and ChatGPT:** add the URL as a custom MCP connector. The client opens a browser, you sign in with Hardal and choose which workspaces (tenants) to share. Every request is then scoped to what you approved.
+- **A stdio-only client?** Bridge it with [`mcp-remote`](https://www.npmjs.com/package/mcp-remote):
 
 ```json
 {
   "mcpServers": {
     "hardal": {
       "command": "npx",
-      "args": ["-y", "usehardal-mcp"],
-      "env": {
-        "HARDAL_SIGNAL_ID": "your-signal-id",
-        "HARDAL_SIGNAL_TOKEN": "your-signal-token"
-      }
+      "args": ["-y", "mcp-remote", "https://mcp.usehardal.com/mcp"]
     }
   }
 }
 ```
 
-Both values come from your Hardal dashboard. Requires Node.js 20 or newer; `npx` fetches the server on demand, so there is nothing to install.
-
-| Variable | Required | Default |
-|---|---|---|
-| `HARDAL_SIGNAL_ID` | yes | — |
-| `HARDAL_SIGNAL_TOKEN` | yes | — |
-| `HARDAL_API_BASE_URL` | no | `https://api.nexus.usehardal.com` |
-| `HARDAL_REQUEST_TIMEOUT_MS` | no | `30000` |
+There are no API keys or tokens to copy — sign-in and workspace access are handled through OAuth.
 
 ## Tools
 
+Call `get_context` first to list your workspaces and pick a `tenantId`; the report tools take it from there.
+
 | Tool | What it answers |
 |---|---|
-| `get_analytics_overview` | What happened over a date range — totals, top pages, referrers, locations, browser/device/OS split, and a time series |
-| `get_analytics_event_counts` | Which events fire, and how often |
-| `get_top_campaigns` | Where traffic came from, ranked by revenue, conversions, sessions, or conversion rate |
+| `get_context` | Which organizations, tenants and sources you can query (with each tenant's report type and currency) |
+| `get_overview` | What happened over a date range — visitor/session/page-view totals, bounce & consent rates, top pages/referrers/locations, and a time series |
+| `get_breakdown` | Traffic broken down by one dimension — acquisition (channels/sources/campaigns), top pages, or events |
+| `compare_periods` | Two date ranges side by side — e.g. this month vs last month |
+| `get_events` | Which events fire and how often, with per-event counts, sessions and visitors |
+| `get_funnels` | A tenant's saved funnels, or one funnel's conversion summary over a date range |
 
-All three are read-only, and all take an optional `start_date`/`end_date` (defaulting to the last 30 days).
+Every tool is read-only and returns aggregates only.
+
+## How it works
+
+Hardal MCP signs you in through Hardal's own authorization server (OAuth 2.1): clients discover it via `GET /.well-known/oauth-protected-resource` and a `401` `WWW-Authenticate` challenge. The server validates your token and, to read your reports, exchanges it for a scoped Reports-API token — your token itself never reaches the reporting API. Access is limited to the tenants you consented to, and revoking the connection (or an admin revoking access) stops it on the next request.
+
+## Develop
+
+```bash
+bun install
+cp .env.example .env
+bun run service-identity:generate   # writes keys/{public,private}.jwk.json
+bun run dev                         # http://localhost:1922
+```
+
+Register the generated public key with a running Beacon:
+
+```bash
+# from the beacon/apps/api checkout
+DATABASE_URL=<beacon db> bun run scripts/register-oauth-service-identity.ts \
+  --client-id hardal-mcp \
+  --name "Hardal MCP" \
+  --jwk <mcp>/keys/public.jwk.json \
+  --operations introspect,token_exchange
+```
+
+In production the service private key lives in Azure Key Vault (`SERVICE_PRIVATE_JWK_VAULT_URL`).
 
 ## Privacy & Support
 
-Every tool returns aggregates only — counts, totals, rankings, time series — never per-visitor records, so no personal data passes through this server. Nothing is stored or forwarded to any third party.
+Every tool returns aggregates only — counts, totals, rankings, time series — never per-visitor records, so no personal data passes through this server. Access is read-only and scoped to the workspaces you approve.
 
 Questions or a vulnerability to report: **support@usehardal.com**.
 

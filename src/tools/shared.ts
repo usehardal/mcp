@@ -1,0 +1,91 @@
+import { z } from "zod";
+import type { ReportsQuery } from "../reports/client";
+
+export const DEFAULT_TIMEZONE = "Europe/Istanbul";
+export const DEFAULT_TIMEFRAME = "last7days";
+
+const dateString = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .describe("YYYY-MM-DD");
+
+export const tenantIdInput = z
+  .string()
+  .uuid()
+  .describe("Tenant to query. Get it from get_context first.");
+
+export const timeRangeInput = {
+  timeframe: z
+    .enum(["today", "yesterday", "last7days", "last30days", "custom"])
+    .optional()
+    .describe("Preset range. Defaults to last7days. Use custom with startDate and endDate."),
+  startDate: dateString.optional().describe("Start date, required when timeframe is custom."),
+  endDate: dateString.optional().describe("End date, required when timeframe is custom."),
+  timezone: z.string().optional().describe(`IANA timezone. Defaults to ${DEFAULT_TIMEZONE}.`),
+};
+
+export const reportScopeInput = {
+  tenantId: tenantIdInput,
+  sourceId: z.string().uuid().optional().describe("Limit to one source. Omit for all sources."),
+};
+
+export const trafficScopeInput = z
+  .enum(["consented_traffic", "unconsented_traffic", "all_traffic"])
+  .optional()
+  .describe("Consent filter for the acquisition dimension. Defaults to all_traffic.");
+
+export type ReportInput = {
+  tenantId: string;
+  sourceId?: string;
+  timeframe?: string;
+  startDate?: string;
+  endDate?: string;
+  timezone?: string;
+};
+
+export type ResolvedFilters = {
+  tenantId: string;
+  sourceId: string;
+  range: string;
+  timezone: string;
+  consent?: string;
+};
+
+export function buildReportQuery(
+  input: ReportInput,
+  options?: { trafficScope?: string },
+): { query: ReportsQuery; filters: ResolvedFilters } {
+  const isCustom = input.timeframe === "custom" || (Boolean(input.startDate) && Boolean(input.endDate));
+  const timezone = input.timezone ?? DEFAULT_TIMEZONE;
+
+  const query: ReportsQuery = { tenantId: input.tenantId, timezone };
+  if (input.sourceId) query.sourceId = input.sourceId;
+  if (options?.trafficScope) query.trafficScope = options.trafficScope;
+  if (isCustom) {
+    query.timeframe = "custom";
+    query.startDate = input.startDate;
+    query.endDate = input.endDate;
+  } else {
+    query.timeframe = input.timeframe ?? DEFAULT_TIMEFRAME;
+  }
+
+  const filters: ResolvedFilters = {
+    tenantId: input.tenantId,
+    sourceId: input.sourceId ?? "all",
+    range: isCustom ? `${input.startDate} to ${input.endDate}` : String(query.timeframe),
+    timezone,
+    ...(options?.trafficScope ? { consent: options.trafficScope } : {}),
+  };
+  return { query, filters };
+}
+
+export function filtersLine(filters: ResolvedFilters): string {
+  const consent = filters.consent ? `, consent: ${filters.consent}` : "";
+  return `Filters — range: ${filters.range}, timezone: ${filters.timezone}, source: ${filters.sourceId}${consent}. Aggregate data only.`;
+}
+
+export function requireToken(extra: { authInfo?: { token?: string } }): string {
+  const token = extra.authInfo?.token;
+  if (!token) throw new Error("missing authenticated token");
+  return token;
+}

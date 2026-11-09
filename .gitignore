@@ -1,5 +1,10 @@
-node_modules/
-dist/
-.env
+node_modules
+dist
+server
 *.log
-repl.mjs
+
+# Secrets and per-environment identity material
+.env
+.env.*
+!.env.example
+keys/*.jwk.json

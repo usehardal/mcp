@@ -1,47 +1,50 @@
 {
   "name": "usehardal-mcp",
   "version": "1.0.0",
-  "description": "MCP server for querying Hardal (usehardal.com) analytics data via its Analytics API",
+  "description": "Remote MCP server for Hardal analytics over Beacon OAuth — query Nebula reports from Claude and ChatGPT",
   "type": "module",
-  "bin": {
-    "usehardal-mcp": "./dist/index.js"
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
-  "engines": {
-    "node": ">=20"
-  },
+  "module": "src/index.ts",
   "scripts": {
-    "build": "tsc",
-    "postbuild": "chmod +x dist/index.js",
-    "prepare": "npm run build",
-    "test": "npm run build && node --test $(find dist -name '*.test.js')",
-    "prepublishOnly": "npm run build"
+    "start": "bun run ./src/index.ts",
+    "dev": "bun --watch ./src/index.ts",
+    "build": "bun build --compile --minify-whitespace --minify-syntax --target bun --outfile server ./src/index.ts",
+    "lint": "eslint . --ext .ts,.js",
+    "type-check": "bunx tsc --noEmit",
+    "test": "bun test",
+    "service-identity:generate": "bun run ./scripts/generate-service-identity.ts"
   },
   "keywords": [
     "mcp",
     "model-context-protocol",
     "hardal",
-    "analytics"
+    "analytics",
+    "oauth"
   ],
   "license": "MIT",
+  "author": "Hardal",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/usehardal/mcp.git"
   },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@types/node": "^20.19.43",
-    "typescript": "^7.0.2"
-  },
   "bugs": {
     "url": "https://github.com/usehardal/mcp/issues"
   },
-  "homepage": "https://usehardal.com"
+  "homepage": "https://usehardal.com",
+  "dependencies": {
+    "@azure/identity": "^4.13.2",
+    "@azure/keyvault-secrets": "^4.11.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "elysia": "latest",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "bun-types": "latest",
+    "eslint": "^10.5.0",
+    "typescript": "~5.9.0",
+    "typescript-eslint": "^8.62.0"
+  },
+  "bun": {
+    "target": "bun"
+  }
 }
