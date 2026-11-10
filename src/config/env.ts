@@ -9,6 +9,7 @@ const envSchema = z.object({
   MCP_RESOURCE: z.string().url().default("http://localhost:1922/mcp"),
   REPORTS_API_RESOURCE: z.string().url().default("http://localhost:1919/v1"),
   MCP_REPORTS_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(2).default(300),
+  MCP_REPORT_SELECTION_KEY: z.union([z.literal(""), z.string().regex(/^[A-Za-z0-9_-]{43}$/)]).optional(),
 
   SERVICE_CLIENT_ID: z.string().min(1).default("hardal-mcp"),
   SERVICE_PRIVATE_JWK_PATH: z.string().optional(),
@@ -40,6 +41,7 @@ export function loadEnv() {
     },
     reports: {
       rateLimitPerMinute: env.MCP_REPORTS_RATE_LIMIT_PER_MINUTE,
+      selectionKey: env.MCP_REPORT_SELECTION_KEY || undefined,
     },
     oauth: {
       issuer: env.OAUTH_ISSUER,

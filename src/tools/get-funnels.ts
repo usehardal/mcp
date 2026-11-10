@@ -1,69 +1,104 @@
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { reportsApiRequest } from "../reports/client";
-import { buildReportQuery, reportScopeInput, timeRangeInput } from "./shared";
+import { reportsApiRequest, reportsApiRequests } from "../reports/client";
+import { calendarKeys, calendarQuery, pickFields, rejectUnsupported, scopeKeys } from "./report-arguments";
+import { pageRows, reportResult, reportRows, toolResult, type ReportRow } from "./report-result";
+import { funnelsInput } from "./get-funnels-input";
 
 export function registerGetFunnelsTool(server: McpServer) {
   server.registerTool(
     "get_funnels",
     {
       title: "Hardal funnels",
-      description:
-        "List a tenant's saved funnels, or get one funnel's conversion summary over a date range when funnelId is given. Use for questions about conversion funnels. Returns aggregate data only.",
+      description: "List saved funnels, get funnel metadata, summarize or break down a saved funnel, or preview a definition without saving it.",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
-      inputSchema: {
-        ...reportScopeInput,
-        ...timeRangeInput,
-        funnelId: z
-          .string()
-          .uuid()
-          .optional()
-          .describe("Funnel to summarize. Omit to list the tenant's funnels."),
-      },
+      inputSchema: funnelsInput,
     },
-    async ({ funnelId, ...input }, extra) => {
-      if (!funnelId) {
-        const { data } = await reportsApiRequest<unknown>(extra.authInfo, "/funnels", {
-          tenantId: input.tenantId,
-          ...(input.sourceId ? { sourceId: input.sourceId } : {}),
+    async ({ mode: requestedMode, funnelId, ...input }, extra) => {
+      const mode = requestedMode ?? (funnelId ? "saved" : "list");
+      const { tenantId, sourceId, limit, offset, breakdown, definition } = input;
+      if (mode === "list") {
+        rejectUnsupported(input, [...scopeKeys, "limit", "offset"], "the funnel catalog");
+        if (funnelId) throw new Error("invalid-arguments: Use metadata or saved mode with funnelId.");
+        const { data } = await reportsApiRequest<ReportRow>(extra.authInfo, "/funnels", {
+          tenantId, ...(sourceId ? { sourceId } : {}),
         });
-        return {
-          content: [{ type: "text", text: `Funnels for tenant ${input.tenantId}. Aggregate data only.` }],
-          structuredContent: { funnels: data },
-        };
+        if (requestedMode || limit !== undefined || offset !== undefined) {
+          const items = reportRows(data.items);
+          const report = pageRows(items, limit, offset, data.total === items.length);
+          return toolResult("Saved funnels for the authorized tenant.", {
+            funnels: { items: report.rows, pagination: report.pagination },
+          });
+        }
+        return toolResult("Saved funnels for the authorized tenant.", { funnels: data });
       }
 
-      if (input.sourceId) {
+      if (mode === "preview") {
+        rejectUnsupported(input, [...calendarKeys, "definition"], "funnel preview");
+        if (funnelId || !definition) throw new Error("invalid-arguments: Preview requires a definition.");
+        const { query, filters } = calendarQuery(input);
+        const { data } = await reportsApiRequest<ReportRow>(extra.authInfo, {
+          method: "POST",
+          path: "/funnels/preview",
+          query,
+          body: {
+            steps: definition.steps,
+            breakdowns: definition.breakdowns.map((item) => ({ ...item, breakdownLabel: item.breakdownLabel ?? item.breakdownKey })),
+          },
+        });
+        const steps = reportRows(data.steps).map((step) => pickFields(step, ["stepOrder", "stepLabel", "value"]));
+        return reportResult({ steps }, { filters, fields: { mode } });
+      }
+
+      if (!funnelId) throw new Error("invalid-arguments: Provide a saved funnelId.");
+      const path = `/funnels/${encodeURIComponent(funnelId)}`;
+      if (mode === "metadata") {
+        rejectUnsupported(input, ["tenantId"], "saved funnel metadata");
+        const { data } = await reportsApiRequest<ReportRow>(extra.authInfo, path, { tenantId });
+        return reportResult(data, { fields: { mode, funnelId } });
+      }
+
+      if (sourceId) {
         return {
           isError: true,
-          content: [
-            {
-              type: "text",
-              text: "A funnel summary always uses the source saved with the funnel; a sourceId override is not supported. Remove sourceId and request the funnel again.",
-            },
-          ],
+          content: [{
+            type: "text",
+            text: "A funnel summary always uses the source saved with the funnel. Remove sourceId and request the funnel again.",
+          }],
         };
       }
-
-      const { query, filters } = buildReportQuery(input);
-      const { data } = await reportsApiRequest<unknown>(
-        extra.authInfo,
-        `/funnels/${encodeURIComponent(funnelId)}/summary`,
-        query,
-      );
-      return {
-        content: [
+      rejectUnsupported(input, [...calendarKeys, "breakdown"], "saved funnel analysis");
+      const { query, filters } = calendarQuery(input);
+      const summaryPath = `${path}/summary`;
+      let data: ReportRow;
+      if (breakdown) {
+        if ((breakdown.sortBy === "stepCount") !== (breakdown.sortStep !== undefined)) {
+          throw new Error("invalid-arguments: Provide sortStep only when sorting by stepCount.");
+        }
+        const [summary, detail] = await reportsApiRequests<ReportRow>(extra.authInfo, [
+          { path: summaryPath, query },
           {
-            type: "text",
-            text: `Funnel summary — range: ${filters.range}, timezone: ${filters.timezone}, source: the funnel's own saved source. Aggregate data only.`,
+            path: `${path}/breakdown`,
+            query: {
+              ...query,
+              breakdownLimit: breakdown.limit ?? 10,
+              breakdownOffset: breakdown.offset ?? 0,
+              breakdownSearch: breakdown.search,
+              breakdownSortBy: breakdown.sortBy,
+              breakdownSortStep: breakdown.sortStep,
+              breakdownSortDirection: breakdown.sortDirection,
+              breakdownKeys: breakdown.keys?.length ? breakdown.keys.join(",") : undefined,
+            },
           },
-        ],
-        structuredContent: {
-          funnelId,
-          appliedFilters: { range: filters.range, timezone: filters.timezone, source: "funnel-defined" },
-          report: data,
-        },
-      };
+        ]);
+        if (!summary || !detail) throw new Error("upstream-contract-mismatch: Missing funnel analysis.");
+        data = { ...summary.data, breakdown: detail.data.breakdownTable };
+      } else {
+        ({ data } = await reportsApiRequest<ReportRow>(extra.authInfo, summaryPath, query));
+      }
+      return reportResult(data, {
+        text: `Funnel summary — range: ${filters.range}, timezone: ${filters.timezone}, source: the funnel's own saved source. Aggregate data only.`,
+        fields: { funnelId, appliedFilters: { range: filters.range, timezone: filters.timezone, source: "funnel-defined" } },
+      });
     },
   );
 }
