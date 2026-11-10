@@ -12,42 +12,42 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # package.json declares engines.node >= 20; test the boundary and current.
-        node: ['20', '22', '24']
-    name: node ${{ matrix.node }}
+    name: bun type-check + test
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: ${{ matrix.node }}
-          cache: npm
+          bun-version: 1.3.5
 
-      # `npm ci` runs the `prepare` script, which builds — so a type error fails here.
-      - run: npm ci
+      # Fails on a lockfile that does not match package.json.
+      - run: bun install --frozen-lockfile
 
-      - run: npm test
+      # A type error fails the run here.
+      - run: bun run type-check
 
-      # Catches a tool file that was deleted from src but left registered, or a
-      # dist/ artifact that would ship broken: the packed tarball must actually boot.
-      - name: Smoke-test the built server over stdio
+      - run: bun test
+
+      # The server must actually boot and enforce auth. No token is needed: an
+      # unauthenticated /mcp call is challenged before any introspection runs,
+      # so this needs no service key or Beacon connection.
+      - name: Smoke-test the HTTP server
         env:
-          HARDAL_SIGNAL_ID: ci-smoke-id
-          HARDAL_SIGNAL_TOKEN: ci-smoke-token
+          PORT: '1922'
         run: |
-          printf '%s\n' \
-            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
-            '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
-            '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-            | node dist/index.js > out.jsonl
-          grep -q '"serverInfo"' out.jsonl || { echo "initialize produced no serverInfo"; cat out.jsonl; exit 1; }
-          for tool in get_analytics_overview get_analytics_event_counts get_top_campaigns; do
-            grep -q "\"$tool\"" out.jsonl || { echo "missing tool: $tool"; cat out.jsonl; exit 1; }
+          bun run src/index.ts &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 40); do
+            curl -sf "http://localhost:${PORT}/health" >/dev/null && break
+            sleep 0.25
           done
-          echo "stdio smoke test passed: all 3 tools registered"
-
-      - name: Verify the published tarball contents
-        run: npm pack --dry-run
+          health=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${PORT}/health")
+          [ "$health" = "200" ] || { echo "health returned $health"; exit 1; }
+          curl -sf "http://localhost:${PORT}/.well-known/oauth-protected-resource" \
+            | grep -q '"resource"' || { echo "missing protected-resource metadata"; exit 1; }
+          mcp=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:${PORT}/mcp" \
+            -H 'content-type: application/json' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
+          [ "$mcp" = "401" ] || { echo "unauthenticated /mcp returned $mcp, expected 401"; exit 1; }
+          echo "http smoke passed: /health 200, protected-resource metadata, /mcp 401"
