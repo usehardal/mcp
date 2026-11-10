@@ -46,6 +46,8 @@ jobs:
           [ "$health" = "200" ] || { echo "health returned $health"; exit 1; }
           curl -sf "http://localhost:${PORT}/.well-known/oauth-protected-resource" \
             | grep -q '"resource"' || { echo "missing protected-resource metadata"; exit 1; }
+          curl -sf "http://localhost:${PORT}/.well-known/oauth-protected-resource/mcp" \
+            | grep -q '"resource"' || { echo "missing path-specific protected-resource metadata"; exit 1; }
           mcp=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:${PORT}/mcp" \
             -H 'content-type: application/json' \
             -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
