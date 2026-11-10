@@ -14,7 +14,13 @@ on:
   workflow_dispatch:      
 
 jobs:
+  # Same lint, type-check, tests and smoke test as the PR check; nothing
+  # deploys unless they pass, even after a push that bypassed branch protection.
+  checks:
+    uses: ./.github/workflows/checks.yml
+
   build-and-deploy:
+    needs: checks
     runs-on: ubuntu-latest
     permissions: 
       id-token: write #This is required for requesting the OIDC JWT Token

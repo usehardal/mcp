@@ -113,7 +113,7 @@ async function readBreakdown(
       : report === "ai_visibility" ? Object.keys(aiFilterFields) : [];
   rejectUnsupported(input.filters, allowed, `${report}/${dimension}`);
   let path: string;
-  let params: ReportsQuery = query;
+  let params: ReportsQuery;
   let rows: string[] | undefined;
   let serverPaged = false;
   if (report === "overview") {

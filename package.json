@@ -8,7 +8,7 @@
     "start": "bun run ./src/index.ts",
     "dev": "bun --watch ./src/index.ts",
     "build": "bun build --compile --minify-whitespace --minify-syntax --target bun --outfile server ./src/index.ts",
-    "lint": "eslint . --ext .ts,.js",
+    "lint": "eslint .",
     "type-check": "bunx tsc --noEmit",
     "test": "bun test",
     "service-identity:generate": "bun run ./scripts/generate-service-identity.ts"
