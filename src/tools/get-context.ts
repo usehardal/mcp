@@ -49,12 +49,7 @@ export function registerGetContextTool(server: McpServer) {
       },
     },
     async ({ limit, offset }, extra) => {
-      const token = extra.authInfo?.token;
-      if (!token) {
-        throw new Error("missing authenticated token");
-      }
-
-      const { data, meta } = await reportsApiRequest<WorkspacePage>(token, "/workspace/access", {
+      const { data, meta } = await reportsApiRequest<WorkspacePage>(extra.authInfo, "/workspace/access", {
         limit,
         offset,
       });

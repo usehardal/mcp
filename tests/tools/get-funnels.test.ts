@@ -1,21 +1,14 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, spyOn, type Mock } from "bun:test";
+import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import * as reportsClient from "../../src/reports/client";
+import { registerGetFunnelsTool } from "../../src/tools/get-funnels";
 
-type Call = { token: string; path: string; query?: Record<string, unknown> };
-const calls: Call[] = [];
-
-mock.module("../../src/reports/client", () => ({
-  reportsApiRequest: async (token: string, path: string, query?: Record<string, unknown>) => {
-    calls.push({ token, path, query });
-    return { data: { ok: true }, meta: {} };
-  },
-}));
-
-const { registerGetFunnelsTool } = await import("../../src/tools/get-funnels");
+let requests: Mock<typeof reportsClient.reportsApiRequest>;
 
 type Handler = (
   args: { funnelId?: string; tenantId: string; sourceId?: string },
-  extra: { authInfo?: { token?: string } },
+  extra: { authInfo?: AuthInfo },
 ) => Promise<any>;
 
 function funnelsHandler(): Handler {
@@ -30,20 +23,25 @@ function funnelsHandler(): Handler {
   return captured;
 }
 
-const extra = { authInfo: { token: "mcp-token" } };
+const extra = {
+  authInfo: { token: "mcp-token", clientId: "mcp-client", scopes: ["reports:read"], extra: { userId: "user-1" } },
+};
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const SOURCE = "22222222-2222-2222-2222-222222222222";
 const FUNNEL = "33333333-3333-3333-3333-333333333333";
 
+beforeEach(() => {
+  requests = spyOn(reportsClient, "reportsApiRequest").mockResolvedValue({ data: { ok: true } });
+});
+
 afterEach(() => {
-  calls.length = 0;
+  requests.mockRestore();
 });
 
 describe("get_funnels source scope [P2]", () => {
   it("forwards sourceId when listing a tenant's funnels", async () => {
     const result = await funnelsHandler()({ tenantId: TENANT, sourceId: SOURCE }, extra);
-    expect(calls[0].path).toBe("/funnels");
-    expect(calls[0].query).toMatchObject({ tenantId: TENANT, sourceId: SOURCE });
+    expect(requests).toHaveBeenCalledWith(extra.authInfo, "/funnels", { tenantId: TENANT, sourceId: SOURCE });
     expect(result.isError).toBeUndefined();
   });
 
@@ -51,14 +49,14 @@ describe("get_funnels source scope [P2]", () => {
     const result = await funnelsHandler()({ tenantId: TENANT, funnelId: FUNNEL, sourceId: SOURCE }, extra);
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("saved");
-    expect(calls.find((call) => call.path.includes("/summary"))).toBeUndefined();
+    expect(requests).not.toHaveBeenCalled();
   });
 
   it("summarizes without sending sourceId and labels the funnel's own saved source", async () => {
     const result = await funnelsHandler()({ tenantId: TENANT, funnelId: FUNNEL }, extra);
-    const summary = calls.find((call) => call.path.includes("/summary"));
-    expect(summary?.path).toBe(`/funnels/${FUNNEL}/summary`);
-    expect(summary?.query?.sourceId).toBeUndefined();
+    const [, path, query] = requests.mock.calls[0];
+    expect(path).toBe(`/funnels/${FUNNEL}/summary`);
+    expect(query?.sourceId).toBeUndefined();
     expect(result.structuredContent.appliedFilters.source).toBe("funnel-defined");
     expect(result.content[0].text).toContain("saved source");
   });

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { reportsApiRequest } from "../reports/client";
-import { buildReportQuery, reportScopeInput, requireToken, timeRangeInput } from "./shared";
+import { buildReportQuery, reportScopeInput, timeRangeInput } from "./shared";
 
 export function registerGetFunnelsTool(server: McpServer) {
   server.registerTool(
@@ -22,10 +22,8 @@ export function registerGetFunnelsTool(server: McpServer) {
       },
     },
     async ({ funnelId, ...input }, extra) => {
-      const token = requireToken(extra);
-
       if (!funnelId) {
-        const { data } = await reportsApiRequest<unknown>(token, "/funnels", {
+        const { data } = await reportsApiRequest<unknown>(extra.authInfo, "/funnels", {
           tenantId: input.tenantId,
           ...(input.sourceId ? { sourceId: input.sourceId } : {}),
         });
@@ -49,7 +47,7 @@ export function registerGetFunnelsTool(server: McpServer) {
 
       const { query, filters } = buildReportQuery(input);
       const { data } = await reportsApiRequest<unknown>(
-        token,
+        extra.authInfo,
         `/funnels/${encodeURIComponent(funnelId)}/summary`,
         query,
       );

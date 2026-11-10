@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
   "name": "io.github.usehardal/hardal",
-  "description": "Query Hardal analytics — overview, events, acquisition breakdowns, period comparisons, and conversion funnels — signed in with your own Hardal account over OAuth.",
+  "description": "Query Hardal analytics, events, and conversion funnels through your Hardal account.",
   "status": "active",
   "version": "1.0.0",
   "repository": {

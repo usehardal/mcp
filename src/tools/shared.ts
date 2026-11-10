@@ -55,7 +55,11 @@ export function buildReportQuery(
   input: ReportInput,
   options?: { trafficScope?: string },
 ): { query: ReportsQuery; filters: ResolvedFilters } {
-  const isCustom = input.timeframe === "custom" || (Boolean(input.startDate) && Boolean(input.endDate));
+  const { startDate, endDate } = input;
+  const isCustom = input.timeframe === "custom" || startDate !== undefined || endDate !== undefined;
+  if (isCustom && (!startDate || !endDate)) {
+    throw new Error("Provide both startDate and endDate for a custom date range.");
+  }
   const timezone = input.timezone ?? DEFAULT_TIMEZONE;
 
   const query: ReportsQuery = { tenantId: input.tenantId, timezone };
@@ -63,8 +67,8 @@ export function buildReportQuery(
   if (options?.trafficScope) query.trafficScope = options.trafficScope;
   if (isCustom) {
     query.timeframe = "custom";
-    query.startDate = input.startDate;
-    query.endDate = input.endDate;
+    query.startDate = startDate;
+    query.endDate = endDate;
   } else {
     query.timeframe = input.timeframe ?? DEFAULT_TIMEFRAME;
   }
@@ -72,7 +76,7 @@ export function buildReportQuery(
   const filters: ResolvedFilters = {
     tenantId: input.tenantId,
     sourceId: input.sourceId ?? "all",
-    range: isCustom ? `${input.startDate} to ${input.endDate}` : String(query.timeframe),
+    range: isCustom ? `${startDate} to ${endDate}` : String(query.timeframe),
     timezone,
     ...(options?.trafficScope ? { consent: options.trafficScope } : {}),
   };
@@ -82,10 +86,4 @@ export function buildReportQuery(
 export function filtersLine(filters: ResolvedFilters): string {
   const consent = filters.consent ? `, consent: ${filters.consent}` : "";
   return `Filters — range: ${filters.range}, timezone: ${filters.timezone}, source: ${filters.sourceId}${consent}. Aggregate data only.`;
-}
-
-export function requireToken(extra: { authInfo?: { token?: string } }): string {
-  const token = extra.authInfo?.token;
-  if (!token) throw new Error("missing authenticated token");
-  return token;
 }

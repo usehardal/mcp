@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { reportsApiRequest } from "../reports/client";
-import { buildReportQuery, filtersLine, reportScopeInput, requireToken } from "./shared";
+import { reportsApiRequests } from "../reports/client";
+import { buildReportQuery, filtersLine, reportScopeInput } from "./shared";
 
 const dateString = z
   .string()
@@ -26,7 +26,6 @@ export function registerComparePeriodsTool(server: McpServer) {
       },
     },
     async (input, extra) => {
-      const token = requireToken(extra);
       const base = {
         tenantId: input.tenantId,
         sourceId: input.sourceId,
@@ -36,9 +35,9 @@ export function registerComparePeriodsTool(server: McpServer) {
       const current = buildReportQuery({ ...base, startDate: input.currentStart, endDate: input.currentEnd });
       const previous = buildReportQuery({ ...base, startDate: input.previousStart, endDate: input.previousEnd });
 
-      const [currentReport, previousReport] = await Promise.all([
-        reportsApiRequest<unknown>(token, "/reports/overview", current.query),
-        reportsApiRequest<unknown>(token, "/reports/overview", previous.query),
+      const [currentReport, previousReport] = await reportsApiRequests<unknown>(extra.authInfo, [
+        { path: "/reports/overview", query: current.query },
+        { path: "/reports/overview", query: previous.query },
       ]);
 
       return {

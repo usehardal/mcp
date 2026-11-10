@@ -17,16 +17,30 @@ describe("buildReportQuery", () => {
     expect(filters.range).toBe(DEFAULT_TIMEFRAME);
   });
 
-  it("switches to a custom range when startDate and endDate are given", () => {
-    const { query, filters } = buildReportQuery({
-      tenantId: "tenant-1",
-      startDate: "2026-01-01",
-      endDate: "2026-01-31",
-    });
-    expect(query.timeframe).toBe("custom");
-    expect(query.startDate).toBe("2026-01-01");
-    expect(query.endDate).toBe("2026-01-31");
-    expect(filters.range).toBe("2026-01-01 to 2026-01-31");
+  it.each([[undefined], ["last30days"], ["custom"]])(
+    "uses both dates as a custom range when timeframe is %p",
+    (timeframe) => {
+      const { query, filters } = buildReportQuery({
+        tenantId: "tenant-1",
+        timeframe,
+        startDate: "2026-01-01",
+        endDate: "2026-01-31",
+      });
+      expect(query.timeframe).toBe("custom");
+      expect(query.startDate).toBe("2026-01-01");
+      expect(query.endDate).toBe("2026-01-31");
+      expect(filters.range).toBe("2026-01-01 to 2026-01-31");
+    },
+  );
+
+  it.each([
+    { startDate: "2026-01-01" },
+    { timeframe: "last30days", endDate: "2026-01-31" },
+    { timeframe: "custom" },
+    { timeframe: "custom", startDate: "2026-01-01" },
+  ])("rejects incomplete date ranges (%j)", (input) => {
+    expect(() => buildReportQuery({ tenantId: "tenant-1", ...input }))
+      .toThrow("Provide both startDate and endDate");
   });
 
   it("passes an explicit source and timezone through", () => {

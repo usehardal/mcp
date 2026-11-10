@@ -8,6 +8,7 @@ const envSchema = z.object({
   BEACON_API_URL: z.string().url().default("http://localhost:1919"),
   MCP_RESOURCE: z.string().url().default("http://localhost:1922/mcp"),
   REPORTS_API_RESOURCE: z.string().url().default("http://localhost:1919/v1"),
+  MCP_REPORTS_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(2).default(300),
 
   SERVICE_CLIENT_ID: z.string().min(1).default("hardal-mcp"),
   SERVICE_PRIVATE_JWK_PATH: z.string().optional(),
@@ -36,6 +37,9 @@ export function loadEnv() {
     nodeEnv: env.NODE_ENV,
     server: {
       port: env.PORT,
+    },
+    reports: {
+      rateLimitPerMinute: env.MCP_REPORTS_RATE_LIMIT_PER_MINUTE,
     },
     oauth: {
       issuer: env.OAUTH_ISSUER,

@@ -5,7 +5,6 @@ import {
   buildReportQuery,
   filtersLine,
   reportScopeInput,
-  requireToken,
   timeRangeInput,
   trafficScopeInput,
 } from "./shared";
@@ -34,11 +33,10 @@ export function registerGetBreakdownTool(server: McpServer) {
       },
     },
     async ({ dimension, trafficScope, ...input }, extra) => {
-      const token = requireToken(extra);
       const options =
         dimension === "acquisition" ? { trafficScope: trafficScope ?? "all_traffic" } : undefined;
       const { query, filters } = buildReportQuery(input, options);
-      const { data } = await reportsApiRequest<unknown>(token, DIMENSION_PATHS[dimension]!, query);
+      const { data } = await reportsApiRequest<unknown>(extra.authInfo, DIMENSION_PATHS[dimension]!, query);
       return {
         content: [{ type: "text", text: `${dimension} breakdown. ${filtersLine(filters)}` }],
         structuredContent: { dimension, appliedFilters: filters, report: data },
