@@ -2,7 +2,7 @@ import { webcrypto } from "node:crypto";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
+//
 const directory = mkdtempSync(join(tmpdir(), "hardal-mcp-test-"));
 
 const pair = (await webcrypto.subtle.generateKey(
@@ -17,8 +17,14 @@ const kid = "hardal-mcp-test-key";
 
 const privatePath = join(directory, "private.jwk.json");
 const publicPath = join(directory, "public.jwk.json");
-writeFileSync(privatePath, JSON.stringify({ ...privateJwk, kid, alg: "ES256", use: "sig" }));
-writeFileSync(publicPath, JSON.stringify({ ...publicJwk, kid, alg: "ES256", use: "sig" }));
+writeFileSync(
+  privatePath,
+  JSON.stringify({ ...privateJwk, kid, alg: "ES256", use: "sig" }),
+);
+writeFileSync(
+  publicPath,
+  JSON.stringify({ ...publicJwk, kid, alg: "ES256", use: "sig" }),
+);
 
 delete process.env.SERVICE_PRIVATE_JWK_VAULT_URL;
 process.env.SERVICE_PRIVATE_JWK_PATH = privatePath;
