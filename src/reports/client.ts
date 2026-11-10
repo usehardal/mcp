@@ -12,18 +12,30 @@ type ReportsApiEnvelope<T> = {
   success: boolean;
   data?: T;
   meta?: Record<string, unknown>;
-  error?: { code?: string; message?: string };
+  error?: { code?: string };
 };
 
-export type ReportsQuery = Record<string, string | number | boolean | undefined>;
+export type ReportsQuery = Record<string, string | number | boolean | readonly string[] | undefined>;
 
-type ReportRequest = { path: string; query?: ReportsQuery };
+type ReadOnlyPost = {
+  method: "POST";
+  path: "/reports/pages/time-series" | "/reports/commerce/items/details" | "/funnels/preview";
+  body: object;
+};
+
+export type ReportRequest =
+  | { path: string; query?: ReportsQuery; method?: "GET" }
+  | (ReadOnlyPost & { query?: ReportsQuery });
 
 function buildUrl(path: string, query?: ReportsQuery) {
   const url = new URL(`${config.oauth.reportsApiResource}${path}`);
   if (query) {
     for (const [key, value] of Object.entries(query)) {
-      if (value !== undefined) url.searchParams.set(key, String(value));
+      if (typeof value === "object") {
+        for (const entry of value) url.searchParams.append(key, entry);
+      } else if (value !== undefined) {
+        url.searchParams.set(key, String(value));
+      }
     }
   }
   return url;
@@ -41,18 +53,25 @@ function authorizeReportRequests(authInfo: AuthInfo | undefined, requestCount: n
 
 async function fetchReport<T>(
   subjectToken: string,
-  path: string,
-  query?: ReportsQuery,
+  request: ReportRequest,
 ): Promise<ReportsApiResult<T>> {
   const delegated = await exchangeForReportsApiToken(subjectToken);
-  const response = await fetch(buildUrl(path, query), {
-    headers: { Authorization: `Bearer ${delegated.accessToken}` },
-  });
+  const headers = new Headers({ Authorization: `Bearer ${delegated.accessToken}` });
+  const init: RequestInit = { headers };
+  if (request.method === "POST") {
+    headers.set("Content-Type", "application/json");
+    init.method = request.method;
+    init.body = JSON.stringify(request.body);
+  }
+  const response = await fetch(buildUrl(request.path, request.query), init);
 
-  const body = (await response.json()) as ReportsApiEnvelope<T>;
-  if (!response.ok || body.success !== true || body.data === undefined) {
-    const reason = body.error?.message ?? body.error?.code ?? `HTTP ${response.status}`;
-    throw new Error(`Reports API request to ${path} failed: ${reason}`);
+  const body = (await response.json().catch(() => null)) as ReportsApiEnvelope<T> | null;
+  if (!response.ok || body?.success !== true || body.data === undefined) {
+    const code = body?.error?.code;
+    const reason = typeof code === "string" && /^[a-z0-9-]{1,64}$/.test(code)
+      ? code
+      : response.ok ? "upstream-contract-mismatch" : `HTTP ${response.status}`;
+    throw new Error(`Reports API request to ${request.path} failed: ${reason}`);
   }
 
   return { data: body.data, meta: body.meta };
@@ -60,11 +79,11 @@ async function fetchReport<T>(
 
 export async function reportsApiRequest<T>(
   authInfo: AuthInfo | undefined,
-  path: string,
+  path: string | ReportRequest,
   query?: ReportsQuery,
 ): Promise<ReportsApiResult<T>> {
   const subjectToken = authorizeReportRequests(authInfo, 1);
-  return fetchReport<T>(subjectToken, path, query);
+  return fetchReport<T>(subjectToken, typeof path === "string" ? { path, query } : path);
 }
 
 export async function reportsApiRequests<T>(
@@ -72,5 +91,5 @@ export async function reportsApiRequests<T>(
   requests: readonly ReportRequest[],
 ): Promise<ReportsApiResult<T>[]> {
   const subjectToken = authorizeReportRequests(authInfo, requests.length);
-  return Promise.all(requests.map(({ path, query }) => fetchReport<T>(subjectToken, path, query)));
+  return Promise.all(requests.map((request) => fetchReport<T>(subjectToken, request)));
 }

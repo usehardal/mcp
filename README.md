@@ -37,6 +37,8 @@ There are no API keys or tokens to copy — sign-in and workspace access are han
 
 ## Tools
 
+The [report coverage matrix](docs/report-coverage.md) lists each tool variant, its Beacon endpoint, and the supported inputs.
+
 Call `get_context` first to list your workspaces and pick a `tenantId`; the report tools take it from there.
 
 | Tool | What it answers |

@@ -4,10 +4,7 @@ import type { ReportsQuery } from "../reports/client";
 export const DEFAULT_TIMEZONE = "Europe/Istanbul";
 export const DEFAULT_TIMEFRAME = "last7days";
 
-const dateString = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .describe("YYYY-MM-DD");
+export const calendarDate = z.iso.date().describe("YYYY-MM-DD");
 
 export const tenantIdInput = z
   .string()
@@ -19,8 +16,8 @@ export const timeRangeInput = {
     .enum(["today", "yesterday", "last7days", "last30days", "custom"])
     .optional()
     .describe("Preset range. Defaults to last7days. Use custom with startDate and endDate."),
-  startDate: dateString.optional().describe("Start date, required when timeframe is custom."),
-  endDate: dateString.optional().describe("End date, required when timeframe is custom."),
+  startDate: calendarDate.optional().describe("Start date, required when timeframe is custom."),
+  endDate: calendarDate.optional().describe("End date, required when timeframe is custom."),
   timezone: z.string().optional().describe(`IANA timezone. Defaults to ${DEFAULT_TIMEZONE}.`),
 };
 
@@ -32,7 +29,7 @@ export const reportScopeInput = {
 export const trafficScopeInput = z
   .enum(["consented_traffic", "unconsented_traffic", "all_traffic"])
   .optional()
-  .describe("Consent filter for the acquisition dimension. Defaults to all_traffic.");
+  .describe("Consent filter for Acquisition. Omit to use the tenant setting in Beacon.");
 
 export type ReportInput = {
   tenantId: string;
