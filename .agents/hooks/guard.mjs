@@ -9,7 +9,8 @@
 //
 // One script for Claude Code and Codex (PreToolUse) and Cursor
 // (beforeShellExecution, beforeReadFile). It is a guardrail against mistakes,
-// not a security boundary. Keep the copies in every repo identical.
+// not a security boundary. Keep the copies in every repo identical, except
+// that this public repo's copy leaves out the internal ClickHouse addresses.
 import process from "node:process";
 import { existsSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
@@ -136,13 +137,11 @@ function checkDatabaseClients(command) {
   return null;
 }
 
-// Production ClickHouse lives in 10.40.0.0/16: Application Gateway 10.40.5.4,
-// chproxy 10.40.3.11-12, nodes 10.40.1.11-14, Keepers 10.40.2.11-13 (see
-// docs/clickhouse-cluster-design.md). The ClickHouse URLs in the repo's env
-// files and environment count too.
+// Production ClickHouse hosts. This repo is public, so its copy lists only
+// the public name; the private repos' copies also list the internal
+// addresses. The ClickHouse URLs in the repo's env files and environment
+// count too.
 const CLICKHOUSE_PROD_HOSTS = [
-  /(?<![\d.])10\.40\.\d{1,3}\.\d{1,3}(?![\d])/,
-  /\bhardal-prod-(?:vm-(?:clickhouse|proxy|keeper)|agw)[\w-]*/i,
   /\bch\.usehardal\.com\b/i,
 ];
 const NETWORK_CALL =

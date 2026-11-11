@@ -91,7 +91,8 @@ review). Keep each to one line.
 ## Agent guardrails
 
 `.agents/hooks/guard.mjs` blocks reading or editing real `.env` files and
-network calls to the production ClickHouse gateway, proxies, nodes or Keepers.
+network calls to production ClickHouse. This repo is public, so its copy of
+the guard leaves out the internal ClickHouse addresses the other repos list.
 `.agents/hooks/stop-typecheck.mjs` keeps the agent working until
 `bun run type-check` passes. Both are wired up in `.claude/settings.json`,
 `.codex/hooks.json` and `.cursor/hooks.json`. If a guard blocks something you
