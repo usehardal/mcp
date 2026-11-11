@@ -1,8 +1,8 @@
 name: CI
 
+# Pushes to the default branch run the same checks inside the deploy
+# workflows, so CI runs on pull requests only.
 on:
-  push:
-    branches: [master]
   pull_request:
   workflow_dispatch:
 
