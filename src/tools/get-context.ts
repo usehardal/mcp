@@ -8,7 +8,7 @@ type WorkspaceTenant = {
   id: string;
   name: string;
   reportType: string;
-  reportingCurrency: string;
+  reportingCurrency: string | null;
   organization: { id: string; name: string };
   sources: WorkspaceSource[];
 };
@@ -23,7 +23,10 @@ function summarize(tenants: WorkspaceTenant[], meta: WorkspaceMeta): string {
   }
   const lines = tenants.map((tenant) => {
     const sources = tenant.sources.map((source) => source.name).join(", ") || "no sources";
-    return `- ${tenant.name} (${tenant.organization.name}, ${tenant.reportType}, ${tenant.reportingCurrency}) — sources: ${sources} — tenantId: ${tenant.id}`;
+    const details = [tenant.organization.name, tenant.reportType, tenant.reportingCurrency]
+      .filter((detail) => detail !== null)
+      .join(", ");
+    return `- ${tenant.name} (${details}) — sources: ${sources} — tenantId: ${tenant.id}`;
   });
   const more = meta.hasNext ? `\nMore tenants available: request offset ${meta.offset + meta.limit}.` : "";
   return `Authorized tenants (${meta.total} total). Pass the tenantId of the one the question is about to the report tools.\n${lines.join("\n")}${more}`;
