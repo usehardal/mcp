@@ -98,6 +98,24 @@ the guard leaves out the internal ClickHouse addresses the other repos list.
 `.codex/hooks.json` and `.cursor/hooks.json`. If a guard blocks something you
 need, ask a person; don't work around it.
 
+## Code Review Rules
+
+Stay read-only: don't edit, stage, commit, push or approve.
+
+- Review only the PR's diff from its merge base. Report a defect only when the
+  diff introduces it or makes it worse, the trigger is realistic, and you can
+  point to the exact lines.
+- P0: a user token, exchanged token or the service private key logged,
+  returned or put in an error; a `/mcp` request served without a valid token
+  for `MCP_RESOURCE`; a report scoped beyond the tenants the user approved.
+- P1: the user's token forwarded instead of exchanged, or an MCP token
+  accepted for the Reports API; calls to Sirius, ClickHouse or Beacon's
+  internal APIs; the per-user rate limit removed or bypassed; a tool name or
+  input schema renamed or removed; tests that call a real Beacon.
+- Don't report style, naming, formatting, missing tests on their own,
+  refactors, or defects that were there before the PR.
+- Report each root cause once. No findings is a valid review.
+
 ## Working style
 
 - State assumptions and ask when a request can be read more than one way.
