@@ -1,12 +1,12 @@
 # Hardal MCP V1 report coverage
 
-Beacon's [versioned OpenAPI](https://github.com/usehardal/beacon/blob/7e4c59f/apps/api/openapi/v1.json) defines the request and response wire format. The [V1 tool contract](https://linear.app/hardal/document/nebula-mcp-v1-tool-contract-e712037dd67d) defines the report capabilities and MCP filter rules. The table maps them to the existing tool names.
+Beacon's [versioned OpenAPI](https://api.beacon.hard.al/openapi/v1.json) defines the request and response wire format. The [V1 tool contract](https://linear.app/hardal/document/nebula-mcp-v1-tool-contract-e712037dd67d) defines the report capabilities and MCP filter rules. The table maps them to the existing tool names.
 
 For calendar reports, common scope means an authorized tenant, optional source, and an inclusive reporting period in the selected timezone. The default timezone is Europe/Istanbul. Calendar series default to daily buckets. Page Trends and Page Flow accept slash-prefixed paths of up to 2,048 characters without query strings or fragments. Realtime uses a rolling window and catalog queries accept only the scope shown. The API paths below include the `/v1` resource prefix.
 
 | MCP tool and variant | Beacon operation | Supported inputs beyond common scope | Result |
 | --- | --- | --- | --- |
-| `get_context` | `GET /v1/workspace/access` | Limit, offset | Authorized tenants, organizations, sources and reporting currency |
+| `get_context` | `GET /v1/workspace/access` | Limit, offset | Authorized tenants, organizations, sources and reporting currency (`null` when the tenant has none) |
 | `get_overview` overview | `GET /v1/reports/overview` | Interval, path, channel, marketing source, device, OS, country, city, event name | Scorecards, previous scorecards and aggregate time series |
 | `get_overview` realtime | `GET /v1/reports/realtime` | Tenant, optional source, window of 1 to 60 minutes | Rolling visitor, session and event counts |
 | `get_overview` pages | `GET /v1/reports/pages/metrics` | Common scope | Current and previous page metrics |
