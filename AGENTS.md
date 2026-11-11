@@ -116,11 +116,23 @@ Stay read-only: don't edit, stage, commit, push or approve.
   refactors, or defects that were there before the PR.
 - Report each root cause once. No findings is a valid review.
 
+<!-- BEGIN AGENTS.base.md: edit in harness, not here -->
 ## Working style
 
-- State assumptions and ask when a request can be read more than one way.
-- Write the minimum code that solves the problem; no speculative options.
-- Touch only what the task needs; match the existing style; mention unrelated
-  problems instead of fixing them.
+- State your assumptions. When a request can be read more than one way, name
+  the readings and ask instead of picking one silently.
+- Write the minimum code that solves the task: no unrequested features,
+  options or configuration, no abstraction for a single use, no handling for
+  cases that can't happen.
+- Touch only what the task needs; every changed line should trace to the
+  request. Match the existing style, and don't reformat, rename or refactor
+  nearby code. Remove only what your change left unused; mention other dead
+  code or problems instead of fixing them.
 - Turn the task into a check (a failing test, a type error, a command) and
-  loop until it passes.
+  loop until it passes. For a bug, reproduce it in a test first.
+- Never make a check pass by weakening it: no skipped or deleted tests,
+  `@ts-ignore`, `any`, disabled lint rules or loosened assertions unless the
+  task asks for it.
+- Say what you verified and how, and what you couldn't verify. Never report a
+  check as passing that you didn't run.
+<!-- END AGENTS.base.md -->
