@@ -4,7 +4,10 @@ import {
   calendarKeys, calendarQuery, pickFields, rejectUnsupported, scopeKeys, validatePointBudget,
 } from "./report-arguments";
 import { aiFilters, overviewFilterFields } from "./report-filters";
-import { reportResult, reportRows, type ReportRow } from "./report-result";
+import { reportRows, type ReportRow } from "./report-result";
+import { realtimeScope } from "./output/context";
+import { guard, reportResult } from "./output/result";
+import { reportOutput } from "./output/tool-outputs";
 
 import { overviewInput } from "./get-overview-input";
 
@@ -27,21 +30,25 @@ export function registerGetOverviewTool(server: McpServer) {
       description: "Overview, rolling Realtime, Pages metrics and trends, aggregate Sessions, Commerce or AI Visibility.",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
       inputSchema: overviewInput,
+      outputSchema: reportOutput,
     },
-    async ({ report = "overview", ...input }, extra) => {
+    guard<typeof overviewInput>(async ({ report = "overview", ...input }, extra) => {
       if (report === "realtime") {
         rejectUnsupported(input, [...scopeKeys, "windowMinutes"], report);
         const { tenantId, sourceId, windowMinutes = 5 } = input;
         const { data } = await reportsApiRequest<ReportRow>(extra.authInfo, "/reports/realtime", { tenantId, sourceId, windowMinutes });
+        const asOf = new Date().toISOString();
         return reportResult(pickFields(data, ["windowMinutes", "consentedVisitors", "sessions", "events"]), {
+          scope: realtimeScope(input),
           text: `Realtime — last ${windowMinutes} minutes, source: ${sourceId ?? "all"}.`,
-          fields: { timeBasis: "rolling_window", range: null, window: { asOf: new Date().toISOString(), windowMinutes } },
+          fields: { timeBasis: "rolling_window", range: null, window: { asOf, windowMinutes } },
+          context: { window: { minutes: windowMinutes, asOf } },
         });
       }
 
       rejectUnsupported(input, [...calendarKeys, ...inputFields[report]], report);
       rejectUnsupported(input.filters, Object.keys(report === "ai_visibility" ? aiFilters.shape : overviewFilterFields), report);
-      const { query, filters, range } = calendarQuery(input);
+      const { query, filters, range, scope } = calendarQuery(input);
       const { interval = "day", includeTrend, engagedEventNames } = input;
       if (input.interval && includeTrend === false) throw new Error("unsupported-filter: interval requires a trend.");
       const catalogOnly = report === "page_trends" && !input.pagePaths && (input.pagePathOffset ?? 0) > 0;
@@ -52,6 +59,7 @@ export function registerGetOverviewTool(server: McpServer) {
         validatePointBudget(range, interval, seriesCount);
       }
 
+      const aiQuery = report === "ai_visibility" ? aiFilters.parse(input.filters ?? {}) : undefined;
       const request = (path: string, options?: typeof query): ReportRequest => ({ path, query: { ...query, ...options } });
       let requests: ReportRequest[];
       switch (report) {
@@ -81,12 +89,10 @@ export function registerGetOverviewTool(server: McpServer) {
         case "commerce":
           requests = [request("/reports/commerce", { interval })];
           break;
-        case "ai_visibility": {
-          const aiQuery = aiFilters.parse(input.filters ?? {});
+        case "ai_visibility":
           requests = [request("/reports/ai-visibility", aiQuery)];
           if (includeTrend !== false) requests.push(request("/reports/ai-visibility/graphs", { interval, ...aiQuery }));
           break;
-        }
       }
 
       const [primary, secondary] = requests.length === 1
@@ -101,7 +107,29 @@ export function registerGetOverviewTool(server: McpServer) {
       if (Array.isArray(series) && series.length > 2000) {
         throw new Error("response-too-large: Choose a coarser interval or a shorter date range.");
       }
-      return reportResult(output, { filters, ...(report !== "overview" ? { fields: { reportType: report } } : {}) });
-    },
+      const pathPage = output.pagePathPagination as ReportRow | undefined;
+      const pagination = report === "page_trends" && typeof pathPage?.hasMore === "boolean"
+        ? {
+          limit: typeof pathPage.limit === "number" ? pathPage.limit : (input.pagePathLimit ?? 20),
+          offset: typeof pathPage.offset === "number" ? pathPage.offset : (input.pagePathOffset ?? 0),
+          total: null,
+          returnedRows: Array.isArray(output.pagePaths) ? output.pagePaths.length : 0,
+          hasMore: pathPage.hasMore,
+          truncated: pathPage.hasMore,
+        }
+        : undefined;
+      return reportResult(output, {
+        scope, filters,
+        ...(report !== "overview" ? { fields: { reportType: report } } : {}),
+        context: {
+          previousRange: data.previousRange,
+          interval: report === "pages" ? null : catalogOnly ? "day" : interval,
+          applied: { ...(aiQuery ?? input.filters), engagedEventNames, includeTrend, pagePaths: input.pagePaths },
+          currency: data.currency,
+          pagination,
+          returnedRows: Array.isArray(series) ? series.length : 0,
+        },
+      });
+    }),
   );
 }

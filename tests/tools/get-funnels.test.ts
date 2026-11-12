@@ -57,7 +57,8 @@ describe("get_funnels source scope [P2]", () => {
     const [, path, query] = requests.mock.calls[0];
     expect(path).toBe(`/funnels/${FUNNEL}/summary`);
     expect(query?.sourceId).toBeUndefined();
-    expect(result.structuredContent.appliedFilters.source).toBe("funnel-defined");
+    expect(result.structuredContent.data.appliedFilters.source).toBe("funnel-defined");
+    expect(result.structuredContent.context.source).toEqual({ mode: "saved_funnel", sourceId: null });
     expect(result.content[0].text).toContain("saved source");
   });
 });

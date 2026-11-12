@@ -10,7 +10,10 @@ import {
   acquisitionDistributionFields, acquisitionFilters, acquisitionSortFields, aiFilterFields, aiFilters, aiPageReportFilters,
   acquisitionQuery, overviewFilterFields, overviewFilters,
 } from "./report-filters";
-import { pageRows, pagination, reportResult, reportRows, type ReportRow } from "./report-result";
+import { extendPagination, pageRows, pagination, reportRows, type ReportRow } from "./report-result";
+import { catalogScope } from "./output/context";
+import { guard, reportResult } from "./output/result";
+import { reportOutput } from "./output/tool-outputs";
 
 const pagedKeys = [...calendarKeys, "limit", "offset"];
 const aiFilterDimensions = ["agentType", ...aiGraphDimensions];
@@ -35,7 +38,8 @@ async function options(input: BreakdownInput, authInfo: AuthInfo | undefined) {
   if (target === "funnel_breakdowns") {
     rejectUnsupported(input, ["tenantId", "target"], target);
     const { data } = await reportsApiRequest<ReportRow>(authInfo, "/funnels/options/breakdowns", { tenantId: input.tenantId });
-    return reportResult({ items: reportRows(data.items) }, { fields: extra });
+    const items = reportRows(data.items);
+    return reportResult({ items }, { scope: catalogScope(input), fields: extra, context: { returnedRows: items.length } });
   }
   if (target !== "ai_visibility" && target !== "funnel_pages") {
     throw new Error("invalid-arguments: Select an options target.");
@@ -48,7 +52,7 @@ async function options(input: BreakdownInput, authInfo: AuthInfo | undefined) {
   rejectUnsupported(input.filters, ai ? Object.keys(aiFilterFields) : [], target);
   const upstreamLimit = Math.min(limit + offset, 500);
   if (ai && offset >= 500) throw new Error("invalid-pagination: AI filter options have a 500-row catalog limit.");
-  const { query, filters } = calendarQuery(input);
+  const { query, filters, scope } = calendarQuery(input);
   const { data } = await reportsApiRequest<ReportRow>(authInfo,
     ai ? "/reports/ai-visibility/filter-options" : "/funnels/options/pages",
     { ...query, search, ...(ai ? { dimension, limit: upstreamLimit, ...aiFilters.parse(input.filters ?? {}) } : { limit, offset }) },
@@ -57,7 +61,9 @@ async function options(input: BreakdownInput, authInfo: AuthInfo | undefined) {
   const page = ai
     ? pageRows(rows, limit, offset, rows.length < upstreamLimit)
     : { rows: rows.slice(0, limit), pagination: pagination(limit, offset, Math.min(rows.length, limit), null) };
-  return reportResult({ items: page.rows, pagination: page.pagination }, { filters, fields: extra });
+  return reportResult({ items: page.rows, pagination: page.pagination }, {
+    scope, filters, fields: extra, context: { applied: { search, dimension: ai ? dimension : undefined }, pagination: page.pagination },
+  });
 }
 
 async function acquisition(input: BreakdownInput, authInfo: AuthInfo | undefined) {
@@ -83,7 +89,7 @@ async function acquisition(input: BreakdownInput, authInfo: AuthInfo | undefined
   if (input.sortEventMetricName && sortBy !== "event_metric") {
     throw new Error("unsupported-filter: sortEventMetricName requires event_metric sorting.");
   }
-  const { query, filters, range } = calendarQuery(input);
+  const { query, filters, range, scope } = calendarQuery(input);
   const { interval = "day", limit = 20, offset = 0, sortDirection, sortEventMetricName } = input;
   validatePointBudget(range, interval);
   const groupBy = input.groupBy === undefined || input.groupBy === "none"
@@ -96,7 +102,20 @@ async function acquisition(input: BreakdownInput, authInfo: AuthInfo | undefined
   });
   const controls = data.controls as ReportRow | undefined;
   const consent = typeof controls?.trafficScope === "string" ? controls.trafficScope : trafficScope;
-  return reportResult(data, { filters: { ...filters, consent }, fields: { dimension: input.dimension } });
+  const distribution = data.trafficDistribution as ReportRow | undefined;
+  const page = distribution
+    ? extendPagination(distribution.pagination, reportRows(distribution.rows).length, { limit, offset })
+    : undefined;
+  const output = distribution ? { ...data, trafficDistribution: { ...distribution, pagination: page } } : data;
+  return reportResult(output, {
+    scope: { ...scope, filters: { ...scope.filters, consent } },
+    filters: { ...filters, consent },
+    fields: { dimension: input.dimension },
+    context: {
+      previousRange: data.previousRange, interval, currency: data.currency, pagination: page,
+      applied: { ...selected, trafficScope: consent, groupBy, columns, sortBy, sortDirection, sortEventMetricName },
+    },
+  });
 }
 
 async function readBreakdown(
@@ -105,9 +124,11 @@ async function readBreakdown(
   input: BreakdownInput,
   authInfo: AuthInfo | undefined,
 ) {
-  const { query, filters, range } = calendarQuery(input);
+  const { query, filters, range, scope } = calendarQuery(input);
   const { limit = 20, offset = 0 } = input;
   const fields = { reportType: report, dimension };
+  let applied: Record<string, unknown> = {};
+  let interval: string | null = null;
   const allowed = report === "overview" ? Object.keys(overviewFilterFields)
     : report === "ai_visibility" && dimension === "pageAgent" ? Object.keys(aiPageReportFilters.shape)
       : report === "ai_visibility" ? Object.keys(aiFilterFields) : [];
@@ -120,6 +141,7 @@ async function readBreakdown(
     rejectUnsupported(input, [...pagedKeys, "filters"], report);
     if (!Object.prototype.hasOwnProperty.call(overviewRows, dimension)) throw new Error("invalid-arguments: Unknown Overview breakdown.");
     path = "/reports/overview";
+    applied = overviewFilters.parse(input.filters ?? {});
     params = { ...query, interval: "day", ...overviewFilters.parse(input.filters ?? {}) };
     rows = overviewRows[dimension as keyof typeof overviewRows];
   } else if (report === "pages") {
@@ -148,6 +170,7 @@ async function readBreakdown(
       case "flow":
         rejectUnsupported(input, [...calendarKeys, "limit", "steps", "destinationPath"], "Page Flow");
         path = "/reports/pages/flow";
+        applied = { destinationPath: input.destinationPath, steps: input.steps ?? 2 };
         params = { ...query, steps: input.steps ?? 2, limit: input.limit ?? 50, destinationPath: input.destinationPath };
         break;
       default:
@@ -157,32 +180,38 @@ async function readBreakdown(
     rejectUnsupported(input, [...pagedKeys, "filters", ...(dimension !== "pageAgent" ? ["interval"] : [])], "AI Visibility");
     if (dimension === "pageAgent") {
       path = "/reports/ai-visibility/page-report";
+      applied = aiPageReportFilters.parse(input.filters ?? {});
       params = { ...query, ...aiPageReportFilters.parse(input.filters ?? {}) };
       rows = ["rows"];
     } else {
       if (!aiGraphDimensions.includes(dimension as (typeof aiGraphDimensions)[number])) {
         throw new Error("invalid-arguments: Unknown AI graph dimension.");
       }
-      const interval = input.interval ?? "day";
-      validatePointBudget(range, interval);
+      interval = input.interval ?? "day";
+      validatePointBudget(range, input.interval ?? "day");
       path = "/reports/ai-visibility/graphs";
+      applied = aiFilters.parse(input.filters ?? {});
       params = { ...query, ...aiFilters.parse(input.filters ?? {}), category: dimension, interval };
       rows = ["points"];
     }
   } else {
     rejectUnsupported(input, calendarKeys, "events");
     path = "/reports/events/overview";
-    params = { ...query, interval: "day" };
+    interval = "day";
+    params = { ...query, interval };
   }
 
   const { data } = await reportsApiRequest<ReportRow>(authInfo, path, params);
+  const context = { previousRange: data.previousRange, applied, interval };
   if (!rows) {
     if (dimension === "flow") {
       const edges = reportRows(data.edges);
       if (edges.length > 250) throw new Error("response-too-large: Select fewer steps or edges.");
-      return reportResult({ ...data, returnedEdges: edges.length, limitPerStep: input.limit ?? 50 }, { filters, fields });
+      return reportResult({ ...data, returnedEdges: edges.length, limitPerStep: input.limit ?? 50 }, {
+        scope, filters, fields, context: { ...context, returnedRows: edges.length },
+      });
     }
-    return reportResult(data, { filters, fields });
+    return reportResult(data, { scope, filters, fields, context });
   }
   const entries = reportRows(pathValue(data, rows));
   const effectiveLimit = dimension === "entry" || dimension === "exit" ? (input.limit ?? 5) : limit;
@@ -198,19 +227,21 @@ async function readBreakdown(
       categoryVisits.set(categoryValue, typeof visits === "number" && current !== null ? (current ?? 0) + visits : null);
     }
     const categories = Array.from(categoryVisits, ([value, visits]) => ({ value, visits }));
-    return reportResult({ points, ...pageRows(categories, limit, offset, false) }, { filters, fields });
+    const page = pageRows(categories, limit, offset, false);
+    return reportResult({ points, ...page }, { scope, filters, fields, context: { ...context, pagination: page.pagination } });
   }
   if (dimension === "attribution") {
     const topPagesLimit = input.pageLimit ?? 20;
     const topPagesOffset = input.pageOffset ?? 0;
     const topPagesTotal = typeof upstreamPage?.total === "number" ? upstreamPage.total : null;
     const topPagesPagination = pagination(topPagesLimit, topPagesOffset, reportRows(data.rows).length, topPagesTotal);
-    return reportResult({ ...pageRows(entries, limit, offset, false), topPagesPagination }, { filters, fields });
+    const page = pageRows(entries, limit, offset, false);
+    return reportResult({ ...page, topPagesPagination }, { scope, filters, fields, context: { ...context, pagination: page.pagination } });
   }
   const page = serverPaged
     ? { rows: entries.slice(0, effectiveLimit), pagination: pagination(effectiveLimit, offset, Math.min(entries.length, effectiveLimit), total) }
     : pageRows(entries, effectiveLimit, offset, false);
-  return reportResult(page, { filters, fields });
+  return reportResult(page, { scope, filters, fields, context: { ...context, pagination: page.pagination } });
 }
 
 export function registerGetBreakdownTool(server: McpServer) {
@@ -221,8 +252,9 @@ export function registerGetBreakdownTool(server: McpServer) {
       description: "Aggregate Overview, Acquisition, Pages, Commerce or AI Visibility breakdowns, or supported filter options.",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
       inputSchema: breakdownInput,
+      outputSchema: reportOutput,
     },
-    async ({ mode = "data", report: explicitReport, ...input }, extra) => {
+    guard<typeof breakdownInput>(async ({ mode = "data", report: explicitReport, ...input }, extra) => {
       if (mode === "options") {
         if (explicitReport) throw new Error("unsupported-filter: Use target for discovery options.");
         return options(input, extra.authInfo);
@@ -235,12 +267,16 @@ export function registerGetBreakdownTool(server: McpServer) {
       if (report === "commerce") return commerceBreakdown(dimension, fields, extra.authInfo);
       if (report === "acquisition") return acquisition({ ...fields, dimension }, extra.authInfo);
       if (!explicitReport && report === "pages") {
-        const { query, filters } = calendarQuery(input);
+        const { query, filters, scope } = calendarQuery(input);
         rejectUnsupported(fields, calendarKeys, "top pages");
         const { data } = await reportsApiRequest<ReportRow>(extra.authInfo, "/reports/pages/top", query);
-        return reportResult(data, { filters, fields: { dimension } });
+        const rows = reportRows(data.rows);
+        const page = extendPagination(data.pagination, rows.length, { limit: rows.length, offset: 0 });
+        return reportResult({ ...data, pagination: page }, {
+          scope, filters, fields: { dimension }, context: { previousRange: data.previousRange, pagination: page },
+        });
       }
       return readBreakdown(report, dimension, fields, extra.authInfo);
-    },
+    }),
   );
 }

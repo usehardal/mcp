@@ -90,7 +90,7 @@ async function callTool(token: string, name: string, args: Record<string, unknow
   });
   expect(response.status).toBe(200);
   const { result } = await response.json() as {
-    result: { isError?: boolean; content: Array<{ text: string }>; structuredContent?: Record<string, unknown> };
+    result: { isError?: boolean; content: Array<{ text: string }>; structuredContent?: { data: Record<string, any>; context: Record<string, any> } };
   };
   return result;
 }
@@ -362,7 +362,7 @@ describe("MCP V1 report coverage", () => {
     const result = await callTool("coverage-token", "get_breakdown", {
       ...reportScope, report: "ai_visibility", dimension: "agentName", limit: 1,
     });
-    const graph = result.structuredContent?.report as { points: unknown[]; rows: unknown[] };
+    const graph = result.structuredContent?.data.report as { points: unknown[]; rows: unknown[] };
     expect(result.isError).toBeUndefined();
     expect(graph.points).toHaveLength(30);
     expect(graph.points[29]).toMatchObject({ date: "2026-04-30" });
@@ -374,11 +374,11 @@ describe("MCP V1 report coverage", () => {
     const first = await callTool("coverage-token", "get_breakdown", args);
     const second = await callTool("coverage-token", "get_breakdown", { ...args, offset: 20 });
     expect(calls.map(({ query }) => [query.get("limit"), query.get("offset")])).toEqual([["10", "5"], ["10", "5"]]);
-    expect(first.structuredContent?.report).toMatchObject({
+    expect(first.structuredContent?.data.report).toMatchObject({
       pagination: { offset: 0, returnedRows: 20, hasMore: true },
       topPagesPagination: { offset: 5, limit: 10, total: 72 },
     });
-    const report = second.structuredContent?.report as { rows: unknown[] };
+    const report = second.structuredContent?.data.report as { rows: unknown[] };
     expect(report.rows).toHaveLength(10);
     expect(report.rows[0]).toMatchObject({ campaign: "campaign-5-20" });
   });
@@ -398,7 +398,7 @@ describe("MCP V1 report coverage", () => {
     };
     const catalog = await callTool("coverage-token", "get_overview", args);
     expect(catalog.isError).toBeUndefined();
-    expect(catalog.structuredContent?.report).toMatchObject({ interval: "day", pagePaths: ["/catalog"], series: [] });
+    expect(catalog.structuredContent?.data.report).toMatchObject({ interval: "day", pagePaths: ["/catalog"], series: [] });
     expect(calls[0]?.query.get("pagePathOffset")).toBe("20");
     expect(calls[0]?.query.get("interval")).toBe("day");
     expect(calls[0]?.body).toEqual({});
@@ -449,8 +449,8 @@ describe("MCP V1 report coverage", () => {
   it("sends Page Trends and Funnel Preview JSON to only the read-only POST paths", async () => {
     const pageResult = await callTool("coverage-token", "get_overview", { ...reportScope, report: "page_trends", pagePaths: ["/catalog"] });
     const funnelResult = await callTool("coverage-token", "get_funnels", { ...reportScope, mode: "preview", definition: previewDefinition });
-    expect(pageResult.structuredContent).toMatchObject({ report: { series: [{ pagePath: "/catalog", pageViews: 8 }] } });
-    expect(funnelResult.structuredContent?.report).toEqual({ steps: [{ stepOrder: 1, stepLabel: "Catalog", value: 9 }] });
+    expect(pageResult.structuredContent).toMatchObject({ data: { report: { series: [{ pagePath: "/catalog", pageViews: 8 }] } } });
+    expect(funnelResult.structuredContent?.data.report).toEqual({ steps: [{ stepOrder: 1, stepLabel: "Catalog", value: 9 }] });
     expect(calls.map(({ path, method, body }) => ({ path, method, body }))).toEqual([
       { path: "/reports/pages/time-series", method: "POST", body: { pagePaths: ["/catalog"] } },
       { path: "/funnels/preview", method: "POST", body: previewDefinition },
@@ -477,8 +477,8 @@ describe("MCP V1 report coverage", () => {
     expect(calls[0]?.query.getAll("conversionEventNames")).toEqual(["purchase", "signup"]);
     expect(calls[0]?.query.get("filterField")).toBe("campaign");
     expect(calls[0]?.query.get("filterValue")).toBe("spring-sale");
-    expect(result.structuredContent?.appliedFilters).toMatchObject({ consent: "consented_traffic" });
-    expect(result.structuredContent?.report).toMatchObject({ trafficDistribution: { rows: [{ source: "direct", sessions: 9 }] } });
+    expect(result.structuredContent?.data.appliedFilters).toMatchObject({ consent: "consented_traffic" });
+    expect(result.structuredContent?.data.report).toMatchObject({ trafficDistribution: { rows: [{ source: "direct", sessions: 9 }] } });
   });
 
   it("rejects unsupported inputs before contacting Beacon", async () => {
@@ -544,7 +544,7 @@ describe("MCP V1 report coverage", () => {
     expect(calls.map(({ query }) => [query.get("startDate"), query.get("endDate")]).sort()).toEqual([
       ["2026-03-25", "2026-03-31"], ["2026-04-01", "2026-04-07"],
     ]);
-    expect(result.structuredContent?.metrics).toMatchObject({
+    expect(result.structuredContent?.data.metrics).toMatchObject({
       sessions: { current: 9, previous: 0, absoluteChange: 9, relativeChangePercent: null, reason: "previous-zero" },
       conversions: { current: 10, previous: 5, absoluteChange: 5, relativeChangePercent: 100 },
     });
@@ -568,7 +568,7 @@ describe("MCP V1 report coverage", () => {
     spyOn(Date, "now").mockImplementation(() => now);
     const options = { ...reportScope, report: "commerce" };
     const list = await callTool("coverage-token", "get_breakdown", { ...options, dimension: "items" });
-    const report = list.structuredContent?.report as { rows: Array<{ selectionId: string }> };
+    const report = list.structuredContent?.data.report as { rows: Array<{ selectionId: string }> };
     const selectionId = report.rows[0]!.selectionId;
     now += 15 * 60_000;
     const expired = await callTool("coverage-token", "get_breakdown", { ...options, dimension: "attribution", selectionId });
@@ -580,7 +580,7 @@ describe("MCP V1 report coverage", () => {
   it("rejects a Commerce selection when the settings version changes without a currency change", async () => {
     const options = { ...reportScope, report: "commerce" };
     const list = await callTool("coverage-token", "get_breakdown", { ...options, dimension: "items" });
-    const report = list.structuredContent?.report as { rows: Array<{ selectionId: string }> };
+    const report = list.structuredContent?.data.report as { rows: Array<{ selectionId: string }> };
     commerceSettingsVersion = "b".repeat(64);
     const detail = await callTool("coverage-token", "get_breakdown", {
       ...options, dimension: "attribution", selectionId: report.rows[0]!.selectionId,
@@ -588,13 +588,14 @@ describe("MCP V1 report coverage", () => {
     expect(detail.isError).toBe(true);
     expect(detail.content[0]?.text).toContain("selection-expired");
     expect(detail.structuredContent).toBeUndefined();
+    expect(JSON.parse(detail.content[1]!.text)).toMatchObject({ ok: false, error: { code: "selection-expired", retryable: false } });
   });
 
   it("round-trips a long Commerce selection using the advertised input schema", async () => {
     const options = { ...reportScope, report: "commerce" };
     commerceItemKey = "\u0001".repeat(8192);
     const list = await callTool("coverage-token", "get_breakdown", { ...options, dimension: "items" });
-    const report = list.structuredContent?.report as { rows: Array<{ selectionId: string }> };
+    const report = list.structuredContent?.data.report as { rows: Array<{ selectionId: string }> };
     const selectionId = report.rows[0]!.selectionId;
     expect(selectionId.length).toBeGreaterThan(16_000);
     expect(selectionId.length).toBeLessThanOrEqual(72_000);
@@ -609,7 +610,7 @@ describe("MCP V1 report coverage", () => {
       ...options, dimension: "items", groupBy: "brand", filters: { filter: { field: "brand", value: "Hardal" } },
     });
     expect(list.isError).toBeUndefined();
-    const report = list.structuredContent?.report as { rows: Array<{ selectionId: string }> };
+    const report = list.structuredContent?.data.report as { rows: Array<{ selectionId: string }> };
     const selectionId = report.rows[0]!.selectionId;
     expect(JSON.stringify(list)).not.toContain("internal-composite");
     expect(Buffer.from(selectionId, "base64url").toString()).not.toContain("internal-composite");
@@ -625,8 +626,8 @@ describe("MCP V1 report coverage", () => {
 
     const group = await callTool("coverage-token", "get_breakdown", { ...options, dimension: "group_items", selectionId });
     const attribution = await callTool("coverage-token", "get_breakdown", { ...options, dimension: "attribution", selectionId });
-    expect(group.structuredContent?.report).toMatchObject({ rows: [{ item_id: "sku-2", orders: 3 }] });
-    expect(attribution.structuredContent?.report).toMatchObject({ rows: [{ source: "direct", orders: 6 }] });
+    expect(group.structuredContent?.data.report).toMatchObject({ rows: [{ item_id: "sku-2", orders: 3 }] });
+    expect(attribution.structuredContent?.data.report).toMatchObject({ rows: [{ source: "direct", orders: 6 }] });
     expect(JSON.stringify(group)).not.toContain("internal-child");
     expect(JSON.stringify(attribution)).not.toContain("internal-composite");
     expect(calls.slice(1).map((call) => [call.method, call.path, call.body])).toEqual([

@@ -4,7 +4,10 @@ import { DEFAULT_TIMEZONE } from "./shared";
 import {
   calendarKeys, calendarQuery, rejectUnsupported, scopeKeys, validatePointBudget,
 } from "./report-arguments";
-import { pageRows, pagination, reportResult, reportRows, type ReportRow } from "./report-result";
+import { pageRows, pagination, reportRows, type ReportRow } from "./report-result";
+import { catalogScope } from "./output/context";
+import { guard, reportResult } from "./output/result";
+import { reportOutput } from "./output/tool-outputs";
 
 import { eventInput } from "./get-events-input";
 
@@ -22,8 +25,9 @@ export function registerGetEventsTool(server: McpServer) {
       description: "Aggregate event metrics and timeline, or event options for acquisition, commerce or funnels.",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
       inputSchema: eventInput,
+      outputSchema: reportOutput,
     },
-    async ({ mode = "overview", ...input }, extra) => {
+    guard<typeof eventInput>(async ({ mode = "overview", ...input }, extra) => {
       if (mode === "options") {
         const { target, search, limit = 20, offset = 0 } = input;
         if (!target) throw new Error("invalid-arguments: Event options require a target.");
@@ -44,15 +48,17 @@ export function registerGetEventsTool(server: McpServer) {
           ? pageRows(items, limit, offset, false)
           : { rows: items.slice(0, limit), pagination: pagination(limit, offset, Math.min(items.length, limit), null) };
         return reportResult({ items: page.rows, pagination: page.pagination }, {
+          scope: calendar?.scope ?? catalogScope(input),
           filters: calendar?.filters,
           fields: { mode, target, ...(catalog ? { timeBasis: "catalog" } : {}) },
+          context: { applied: { search }, pagination: page.pagination },
         });
       }
 
       rejectUnsupported(input, [
         ...calendarKeys, "interval", "metricEventNames", "conversionEventNames", "timeline", "metricsOnly", "limit", "offset",
       ], "events overview");
-      const { query, filters, range } = calendarQuery(input);
+      const { query, filters, range, scope } = calendarQuery(input);
       const { interval = "day", metricEventNames, conversionEventNames, timeline, metricsOnly } = input;
       if (metricsOnly && timeline?.eventNames.length) throw new Error("unsupported-filter: Timeline selection requires metricsOnly to be false.");
       if (!metricsOnly) {
@@ -63,12 +69,23 @@ export function registerGetEventsTool(server: McpServer) {
         timelineOptionMode: timeline?.eventNames.length ? timeline.mode : undefined,
         timelineEventNames: timeline?.eventNames,
       });
+      const context = {
+        previousRange: data.previousRange,
+        interval,
+        applied: {
+          metricEventNames, conversionEventNames, metricsOnly,
+          timelineOptionMode: timeline?.eventNames.length ? timeline.mode : undefined, timelineEventNames: timeline?.eventNames,
+        },
+        returnedRows: Array.isArray(data.timeline) ? data.timeline.length : 0,
+      };
       if (Array.isArray(data.timeline) && data.timeline.length > 2000) {
         throw new Error("response-too-large: Choose a coarser interval or a shorter date range.");
       }
-      if (input.limit === undefined && input.offset === undefined) return reportResult(data, { filters });
+      if (input.limit === undefined && input.offset === undefined) return reportResult(data, { scope, filters, context });
       const page = pageRows(reportRows(data.timelineEventOptions), input.limit, input.offset, false);
-      return reportResult({ ...data, timelineEventOptions: page.rows, pagination: page.pagination }, { filters });
-    },
+      return reportResult({ ...data, timelineEventOptions: page.rows, pagination: page.pagination }, {
+        scope, filters, context: { ...context, pagination: page.pagination },
+      });
+    }),
   );
 }
