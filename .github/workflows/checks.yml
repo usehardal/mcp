@@ -32,7 +32,7 @@ jobs:
       - run: bun test
 
       # The server must actually boot and enforce auth. No token is needed: an
-      # unauthenticated /mcp call is challenged before any introspection runs,
+      # unauthenticated MCP call is challenged before any introspection runs,
       # so this needs no service key or Beacon connection.
       - name: Smoke-test the HTTP server
         env:
@@ -50,9 +50,12 @@ jobs:
           curl -sf "http://localhost:${PORT}/.well-known/oauth-protected-resource" \
             | grep -q '"resource"' || { echo "missing protected-resource metadata"; exit 1; }
           curl -sf "http://localhost:${PORT}/.well-known/oauth-protected-resource/mcp" \
-            | grep -q '"resource"' || { echo "missing path-specific protected-resource metadata"; exit 1; }
-          mcp=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:${PORT}/mcp" \
-            -H 'content-type: application/json' \
-            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
-          [ "$mcp" = "401" ] || { echo "unauthenticated /mcp returned $mcp, expected 401"; exit 1; }
-          echo "http smoke passed: /health 200, protected-resource metadata, /mcp 401"
+            | grep -q '"resource"' || { echo "missing legacy-path protected-resource metadata"; exit 1; }
+          initialize='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
+          root=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:${PORT}/" \
+            -H 'content-type: application/json' -d "$initialize")
+          [ "$root" = "401" ] || { echo "unauthenticated / returned $root, expected 401"; exit 1; }
+          legacy=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:${PORT}/mcp" \
+            -H 'content-type: application/json' -d "$initialize")
+          [ "$legacy" = "401" ] || { echo "unauthenticated /mcp returned $legacy, expected 401"; exit 1; }
+          echo "http smoke passed: /health 200, protected-resource metadata, / and /mcp 401"

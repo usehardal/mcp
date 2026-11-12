@@ -20,7 +20,7 @@ describe("protected-resource metadata", () => {
     expect(await response.json()).toEqual(expectedMetadata);
   });
 
-  it("is served at the well-known path that carries the resource path", async () => {
+  it("is served at the well-known path of the legacy /mcp endpoint", async () => {
     const response = await get("/.well-known/oauth-protected-resource/mcp");
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(expectedMetadata);

@@ -21,9 +21,9 @@ const initialize = {
   },
 };
 
-function post(headers: Record<string, string> = {}, message: object = initialize) {
+function post(headers: Record<string, string> = {}, message: object = initialize, path = "/") {
   return mcpRoutes.handle(
-    new Request("http://localhost/mcp", {
+    new Request(`http://localhost${path}`, {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json, text/event-stream", ...headers },
       body: JSON.stringify(message),
@@ -43,7 +43,7 @@ function activeTokenFor(resource: string, userId = "user-1") {
   };
 }
 
-describe("POST /mcp authentication", () => {
+describe("POST / authentication", () => {
   it("rejects a request with no bearer token", async () => {
     introspectionResult = { active: false };
     const res = await post();
@@ -72,6 +72,21 @@ describe("POST /mcp authentication", () => {
   });
 });
 
+describe("POST /mcp legacy path", () => {
+  it("challenges a request with no bearer token", async () => {
+    introspectionResult = { active: false };
+    const res = await post({}, initialize, "/mcp");
+    expect(res.status).toBe(401);
+    expect(res.headers.get("WWW-Authenticate")).toContain("resource_metadata=");
+  });
+
+  it("serves the same handler as the root path", async () => {
+    introspectionResult = activeTokenFor(config.oauth.mcpResource);
+    const res = await post({ authorization: "Bearer mcp-token" }, initialize, "/mcp");
+    expect(res.status).toBe(200);
+  });
+});
+
 const tenantId = "11111111-1111-4111-8111-111111111111";
 const compareArgs = {
   tenantId,
@@ -95,7 +110,7 @@ async function callTool(token: string, name: string, args: Record<string, unknow
   return result;
 }
 
-describe("POST /mcp report requests", () => {
+describe("POST / report requests", () => {
   const configuredLimit = config.reports.rateLimitPerMinute;
 
   afterEach(() => {

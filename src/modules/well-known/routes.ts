@@ -10,8 +10,17 @@ const protectedResourceMetadata = () => ({
   bearer_methods_supported: ["header"],
 });
 
+const metadataPath = config.oauth.protectedResourceMetadataPath;
 const resourcePath = new URL(config.oauth.mcpResource).pathname;
+const metadataPaths = new Set([
+  metadataPath,
+  `${metadataPath}${config.oauth.legacyMcpPath}`,
+  ...(resourcePath === "/" ? [] : [`${metadataPath}${resourcePath}`]),
+]);
 
-export const wellKnownRoutes = new Elysia()
-  .get(config.oauth.protectedResourceMetadataPath, protectedResourceMetadata)
-  .get(`${config.oauth.protectedResourceMetadataPath}${resourcePath}`, protectedResourceMetadata);
+function registerMetadataRoutes(app: Elysia) {
+  for (const path of metadataPaths) app.get(path, protectedResourceMetadata);
+  return app;
+}
+
+export const wellKnownRoutes = registerMetadataRoutes(new Elysia());

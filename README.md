@@ -16,7 +16,7 @@ A remote [MCP](https://modelcontextprotocol.io) server for querying your [Hardal
 The server is hosted — there is nothing to install. Add it as a remote (streamable-HTTP) MCP server:
 
 ```
-https://mcp.usehardal.com/mcp
+https://mcp.usehardal.com
 ```
 
 - **Claude (web, Desktop, Code) and ChatGPT:** add the URL as a custom MCP connector. The client opens a browser, you sign in with Hardal and choose which workspaces (tenants) to share. Every request is then scoped to what you approved.
@@ -27,13 +27,15 @@ https://mcp.usehardal.com/mcp
   "mcpServers": {
     "hardal": {
       "command": "npx",
-      "args": ["-y", "mcp-remote", "https://mcp.usehardal.com/mcp"]
+      "args": ["-y", "mcp-remote", "https://mcp.usehardal.com"]
     }
   }
 }
 ```
 
 There are no API keys or tokens to copy — sign-in and workspace access are handled through OAuth.
+
+Clients that were connected with the earlier `https://mcp.usehardal.com/mcp` URL keep working; the root URL is the one to publish.
 
 ## Tools
 

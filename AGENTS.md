@@ -1,6 +1,6 @@
 # Hardal MCP
 
-The remote MCP server behind `https://mcp.usehardal.com/mcp`, a Bun + Elysia
+The remote MCP server behind `https://mcp.usehardal.com`, a Bun + Elysia
 service on Azure Container Apps (`hardal-mcp`). Users connect from Claude,
 ChatGPT or any streamable-HTTP MCP client and sign in with Beacon OAuth. Each
 tool in `src/tools` reads Beacon's public Reports API (`/v1`) with a token
@@ -22,12 +22,13 @@ its Beacon operation. The working style at the end of this file comes from
 | Tests | `bun test` (`tests/setup.ts` creates a throwaway signing key) |
 
 CI also boots the server and checks `/health` (200), both protected-resource
-metadata paths and that an unauthenticated `POST /mcp` gets 401; see
+metadata paths and that an unauthenticated `POST /` gets 401; see
 `.github/workflows/checks.yml`, which runs on every PR and before every deploy.
 
 ## Invariants
 
-- Every `/mcp` request carries a Beacon access token whose audience is
+- Every MCP request (`/`, or the `/mcp` alias kept for clients configured
+  before DEV-4317) carries a Beacon access token whose audience is
   `MCP_RESOURCE`. Without one the server answers 401 with the OAuth challenge
   before doing anything else.
 - The server never forwards the user's token. It introspects it, then
@@ -47,9 +48,9 @@ metadata paths and that an unauthenticated `POST /mcp` gets 401; see
 
 ## Endpoints and metrics
 
-- The HTTP endpoints are `/mcp`, `/health` and `/.well-known/*`. There is no
-  Postman collection yet; the first PR that adds or changes an endpoint creates
-  `postman/hardal-mcp.postman_collection.json` covering all of them.
+- The HTTP endpoints are `/` (MCP, with `/mcp` as an alias), `/health` and
+  `/.well-known/*`. `postman/hardal-mcp.postman_collection.json` covers all of
+  them; a PR that adds or changes an endpoint updates it.
 - A tool change updates `docs/report-coverage.md` and the README tool list in
   the same PR.
 - The server exports no metrics and has no dashboard JSON yet. The first change
