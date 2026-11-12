@@ -1,0 +1,176 @@
+{
+  "info": {
+    "name": "Hardal MCP",
+    "description": "HTTP surface of the remote Hardal MCP server: health, OAuth protected-resource metadata, and the streamable-HTTP MCP endpoint at the root URL.\n\nSet `accessToken` in a Postman environment to exercise the authenticated requests. Without it they assert the 401 OAuth challenge, which is what CI checks.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:1922",
+      "description": "Origin of the MCP server. Production: https://mcp.usehardal.com"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "description": "Beacon access token issued for MCP_RESOURCE. Supply it from an environment; never store it in this file."
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/health"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"health is ok\", () => {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.status).to.eql(\"ok\");",
+              "  pm.expect(body.service).to.eql(\"hardal-mcp\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Protected resource metadata",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/.well-known/oauth-protected-resource"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"describes the MCP resource and its authorization server\", () => {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.resource).to.be.a(\"string\").and.not.match(/\\/$/);",
+              "  pm.expect(body.authorization_servers).to.have.lengthOf(1);",
+              "  pm.expect(body.scopes_supported).to.include(\"reports:read\");",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Initialize",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json, text/event-stream"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"postman\",\"version\":\"1.0.0\"}}}"
+        },
+        "url": "{{baseUrl}}/"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.variables.get(\"accessToken\")) {",
+              "  pm.test(\"initializes an MCP session at the root URL\", () => {",
+              "    pm.response.to.have.status(200);",
+              "    const body = pm.response.json();",
+              "    pm.expect(body.result.protocolVersion).to.be.a(\"string\");",
+              "    pm.expect(body.result.serverInfo.name).to.be.a(\"string\");",
+              "  });",
+              "} else {",
+              "  pm.test(\"challenges an unauthenticated call with the OAuth metadata\", () => {",
+              "    pm.response.to.have.status(401);",
+              "    pm.expect(pm.response.headers.get(\"WWW-Authenticate\")).to.include(\"resource_metadata=\\\"\");",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "List tools",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json, text/event-stream"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}"
+        },
+        "url": "{{baseUrl}}/"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.variables.get(\"accessToken\")) {",
+              "  pm.test(\"lists the six report tools\", () => {",
+              "    pm.response.to.have.status(200);",
+              "    const names = pm.response.json().result.tools.map((tool) => tool.name).sort();",
+              "    pm.expect(names).to.eql([\"compare_periods\", \"get_breakdown\", \"get_context\", \"get_events\", \"get_funnels\", \"get_overview\"]);",
+              "  });",
+              "} else {",
+              "  pm.test(\"challenges an unauthenticated call\", () => {",
+              "    pm.response.to.have.status(401);",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

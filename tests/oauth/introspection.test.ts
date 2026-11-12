@@ -46,7 +46,7 @@ describe("introspectToken", () => {
       sub: "user-1",
       client_id: "client-1",
       scope: "reports:read",
-      aud: "http://localhost:1922/mcp",
+      aud: "http://localhost:1922",
       exp: 1900000000,
       tenant_ids: ["tenant-1"],
     };
@@ -57,7 +57,7 @@ describe("introspectToken", () => {
       expect(result.clientId).toBe("client-1");
       expect(result.scopes).toEqual(["reports:read"]);
       expect(result.tenantIds).toEqual(["tenant-1"]);
-      expect(result.resource).toBe("http://localhost:1922/mcp");
+      expect(result.resource).toBe("http://localhost:1922");
       expect(result.expiresAt).toBe(1900000000);
     }
     expect(lastBody).toContain("token=token-A");

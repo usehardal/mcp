@@ -23,7 +23,7 @@ const initialize = {
 
 function post(headers: Record<string, string> = {}, message: object = initialize) {
   return mcpRoutes.handle(
-    new Request("http://localhost/mcp", {
+    new Request("http://localhost/", {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json, text/event-stream", ...headers },
       body: JSON.stringify(message),
@@ -43,7 +43,7 @@ function activeTokenFor(resource: string, userId = "user-1") {
   };
 }
 
-describe("POST /mcp authentication", () => {
+describe("POST / authentication", () => {
   it("rejects a request with no bearer token", async () => {
     introspectionResult = { active: false };
     const res = await post();
@@ -95,7 +95,7 @@ async function callTool(token: string, name: string, args: Record<string, unknow
   return result;
 }
 
-describe("POST /mcp report requests", () => {
+describe("POST / report requests", () => {
   const configuredLimit = config.reports.rateLimitPerMinute;
 
   afterEach(() => {
