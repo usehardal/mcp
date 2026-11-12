@@ -69,6 +69,9 @@ function retryAfterSeconds(response: Response): number | undefined {
 function upstreamFailure(response: Response, code: unknown): ToolFailure {
   const reason = typeof code === "string" && /^[a-z0-9-]{1,64}$/.test(code) ? ` (${code})` : "";
   if (response.ok) return new ToolFailure("upstream-contract-mismatch", `Beacon returned an unexpected report envelope${reason}.`);
+  if (typeof code === "string" && code.endsWith("currency-unavailable")) {
+    return new ToolFailure("currency-unavailable", "This selection needs a reporting currency the tenant does not have. Sort or group by a non-monetary field.");
+  }
   if (response.status === 401 || response.status === 403) {
     return new ToolFailure("access-denied", `Beacon declined the report request${reason}.`);
   }

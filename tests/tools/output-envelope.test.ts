@@ -116,11 +116,20 @@ describe("tool result envelope", () => {
       expect(realtime.structuredContent!.context).toMatchObject({ timeBasis: "rolling_window", window: { minutes: 5 } });
       const trends = await client.callTool({ name: "get_overview", arguments: { tenantId, report: "page_trends", pagePaths: ["/catalog"] } }) as ToolResult;
       expect(trends.structuredContent!.context.completeness).toEqual({ complete: true, reason: null, returnedRows: 1, limit: 20, hasMore: false });
+      expect(trends.structuredContent!.data.report.pagePathPagination).toEqual({ limit: 20, offset: 0, hasMore: false, total: null, returnedRows: 1, truncated: false });
+      const context = await client.callTool({ name: "get_context", arguments: {} }) as ToolResult;
+      expect(context.structuredContent!.data.pagination).toEqual({ total: 1, limit: 1, offset: 0, hasNext: false, returnedRows: 1, hasMore: false, truncated: false });
+      const options = await client.callTool({ name: "get_breakdown", arguments: { tenantId, mode: "options", target: "funnel_pages", search: "/catalog?x=1#f" } }) as ToolResult;
+      expect(options.structuredContent!.context.filters).toContainEqual({ name: "search", status: "applied", value: "/catalog" });
+      expect(options.structuredContent!.context.redactedLabels).toBe(2);
       const acquisition = await client.callTool({ name: "get_breakdown", arguments: { tenantId, dimension: "acquisition" } }) as ToolResult;
       expect(acquisition.structuredContent!.data.report.trafficDistribution.pagination).toMatchObject({ limit: 20, offset: 0, total: 1, returnedRows: 1, hasMore: false });
       expect(acquisition.structuredContent!.data.appliedFilters.consent).toBe("consented_traffic");
       expect(acquisition.structuredContent!.context.currency).toEqual({ reportingCurrency: "TRY", status: "available", excludedCount: 0 });
       expect(acquisition.structuredContent!.context.filters).toContainEqual({ name: "trafficScope", status: "applied", value: "consented_traffic" });
+      expect(acquisition.structuredContent!.context.filters).toContainEqual({ name: "attributionModel", status: "applied", value: "last_touch" });
+      const compared = await client.callTool({ name: "compare_periods", arguments: { tenantId, report: "acquisition", period: { startDate: "2026-04-01", endDate: "2026-04-07" }, comparison: { mode: "previous_period" } } }) as ToolResult;
+      expect(compared.structuredContent!.context.filters).toContainEqual({ name: "attributionModel", status: "applied", value: "last_touch" });
       expect(acquisition.structuredContent!.context.previousRange).toEqual({ startDate: "2026-03-25", endDate: "2026-03-31", timezone: "Europe/Berlin" });
       expect(leakyPath.startsWith("/catalog")).toBe(true);
     } finally {
@@ -133,6 +142,13 @@ describe("tool result envelope", () => {
     single.mockRejectedValue(new Error("Reports API request to /reports/overview failed: tenant-not-granted"));
     const { server, client } = await connect();
     try {
+      const rejected = await client.callTool({ name: "get_overview", arguments: { tenantId, interval: "weekly" } }) as ToolResult;
+      expect(rejected.isError).toBe(true);
+      expect(rejected.structuredContent).toBeUndefined();
+      const rejectedEnvelope = JSON.parse(rejected.content[1]!.text!);
+      expect(rejectedEnvelope).toMatchObject({ schemaVersion: "1.0.0", ok: false, error: { code: "invalid-arguments", retryable: false } });
+      expect(rejectedEnvelope.error.message).toContain("interval");
+      expect(single).not.toHaveBeenCalled();
       const unsupported = await client.callTool({ name: "get_overview", arguments: { tenantId, report: "pages", interval: "hour" } }) as ToolResult;
       expect(unsupported.isError).toBe(true);
       expect(unsupported.structuredContent).toBeUndefined();

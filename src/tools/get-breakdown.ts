@@ -8,7 +8,7 @@ import {
 } from "./report-arguments";
 import {
   acquisitionDistributionFields, acquisitionFilters, acquisitionSortFields, aiFilterFields, aiFilters, aiPageReportFilters,
-  acquisitionQuery, overviewFilterFields, overviewFilters,
+  acquisitionQuery, appliedAcquisitionControls, overviewFilterFields, overviewFilters,
 } from "./report-filters";
 import { extendPagination, pageRows, pagination, reportRows, type ReportRow } from "./report-result";
 import { catalogScope } from "./output/context";
@@ -113,7 +113,9 @@ async function acquisition(input: BreakdownInput, authInfo: AuthInfo | undefined
     fields: { dimension: input.dimension },
     context: {
       previousRange: data.previousRange, interval, currency: data.currency, pagination: page,
-      applied: { ...selected, trafficScope: consent, groupBy, columns, sortBy, sortDirection, sortEventMetricName },
+      applied: appliedAcquisitionControls(
+        { ...selected, trafficScope: consent, groupBy, columns, sortBy, sortDirection, sortEventMetricName }, controls,
+      ),
     },
   });
 }

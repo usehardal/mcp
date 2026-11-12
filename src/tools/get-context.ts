@@ -62,9 +62,10 @@ export function registerGetContextTool(server: McpServer) {
         limit,
         offset,
       });
-      const pagination = (meta ?? { total: data.tenants.length, limit: data.tenants.length, offset: 0, hasNext: false }) as WorkspaceMeta;
+      const page = (meta ?? { total: data.tenants.length, limit: data.tenants.length, offset: 0, hasNext: false }) as WorkspaceMeta;
+      const pagination = { ...page, returnedRows: data.tenants.length, hasMore: page.hasNext, truncated: page.hasNext };
 
-      return envelope(summarize(data.tenants, pagination), catalogContext(), { tenants: data.tenants, pagination });
+      return envelope(summarize(data.tenants, page), catalogContext(), { tenants: data.tenants, pagination });
     }),
   );
 }

@@ -118,7 +118,8 @@ export function registerGetOverviewTool(server: McpServer) {
           truncated: pathPage.hasMore,
         }
         : undefined;
-      return reportResult(output, {
+      const payload = pagination ? { ...output, pagePathPagination: { ...pathPage, ...pagination } } : output;
+      return reportResult(payload, {
         scope, filters,
         ...(report !== "overview" ? { fields: { reportType: report } } : {}),
         context: {

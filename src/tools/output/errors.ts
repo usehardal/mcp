@@ -7,7 +7,7 @@ export const SCHEMA_VERSION = "1.0.0";
 export const toolErrorCodes = [
   "invalid-arguments", "unsupported-filter", "invalid-date-range", "invalid-timezone", "range-too-large",
   "invalid-pagination", "access-denied", "resource-not-found", "selection-expired", "quota-exceeded",
-  "upstream-unavailable", "response-too-large", "feature-unavailable", "upstream-contract-mismatch",
+  "upstream-unavailable", "response-too-large", "currency-unavailable", "feature-unavailable", "upstream-contract-mismatch",
 ] as const;
 export type ToolErrorCode = (typeof toolErrorCodes)[number];
 

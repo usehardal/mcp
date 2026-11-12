@@ -30,11 +30,13 @@ function finish(
   base: string,
 ): CallToolResult {
   const shaped = normalizePaths(data);
+  const applied = normalizePaths(context.applied ?? {});
   const measured = {
     missingValues: nullPointers(upstream(shaped.value as Record<string, unknown>), base),
-    redactedLabels: shaped.redacted,
+    redactedLabels: shaped.redacted + applied.redacted,
   };
-  return envelope(text, shape(reportContextSchema, reportContext(scope, context, measured)), shaped.value);
+  const reportOptions = { ...context, applied: applied.value };
+  return envelope(text, shape(reportContextSchema, reportContext(scope, reportOptions, measured)), shaped.value);
 }
 
 export function toolResult(text: string, data: object, scope: ReportScope, context: ContextOptions = {}): CallToolResult {

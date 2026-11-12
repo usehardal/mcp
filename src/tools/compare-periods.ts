@@ -6,7 +6,7 @@ import {
   shiftDays, validateRange, type CalendarRange,
 } from "./report-arguments";
 import {
-  acquisitionFilterFields, acquisitionFilters, acquisitionQuery, overviewFilterFields, overviewFilters,
+  acquisitionFilterFields, acquisitionFilters, acquisitionQuery, appliedAcquisitionControls, overviewFilterFields, overviewFilters,
 } from "./report-filters";
 import type { ReportRow } from "./report-result";
 import { timezoneOrigin } from "./output/context";
@@ -106,7 +106,7 @@ export function registerComparePeriodsTool(server: McpServer) {
         {
           previousRange: { ...previousRange, timezone: current.filters.timezone },
           interval: "day",
-          applied: acquisition ?? overview,
+          applied: acquisition ? appliedAcquisitionControls(acquisition, currentReport.data.controls) : overview,
           currency: currentReport.data.currency,
         },
       );

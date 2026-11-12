@@ -77,6 +77,18 @@ describe("reportsApiRequest failures", () => {
     }
   });
 
+  it("maps Beacon's commerce currency rejection to currency-unavailable", async () => {
+    const fetchSpy = stubBeacon(() => Response.json({ success: false, error: { code: "commerce-items-currency-unavailable" } }, { status: 400 }));
+    try {
+      const error = await failure(reportsApiRequest(authInfo, "/reports/commerce/items", { tenantId: "t" }));
+      expect(error.code).toBe("currency-unavailable");
+      expect(error.message).toContain("reporting currency");
+      expect(error.message).not.toContain("/reports/commerce");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("treats a successful envelope without data as a contract mismatch and a missing user as denied", async () => {
     const odd = stubBeacon(() => Response.json({ success: true }));
     try {

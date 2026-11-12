@@ -73,6 +73,20 @@ export function distributionQuery<T extends { filter?: { field: string; value: s
   };
 }
 
+const acquisitionControlKeys = [
+  "attributionModel", "attributionWindowDays", "trafficScope", "conversionEventNames", "eventMetricNames", "aiFocus", "filter",
+  "breakdownMode", "campaignsBreakdownMode", "groupBy", "columns", "sortBy", "sortEventMetricName", "sortDirection",
+] as const;
+
+export function appliedAcquisitionControls(requested: Record<string, unknown>, controls: unknown): Record<string, unknown> {
+  const effective = controls && typeof controls === "object" ? (controls as Record<string, unknown>) : {};
+  const applied = { ...requested };
+  for (const key of acquisitionControlKeys) {
+    if (effective[key] !== undefined && effective[key] !== null) applied[key] = effective[key];
+  }
+  return applied;
+}
+
 export function acquisitionQuery(input: z.infer<typeof acquisitionFilters>) {
   return {
     ...distributionQuery(input),
