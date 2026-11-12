@@ -10,7 +10,8 @@ API with a token exchanged for each user.
 
 - Review only the diff from the merge base. Read the PR description and its
   Linear issue first and judge the change against the scope they state;
-  deferred work and behaviour that was already there are not findings.
+  deferred work is not a finding unless leaving it out breaks the changed
+  behaviour, and behaviour that was already there is not a finding.
 - Trace callers, consumers and contracts only as far as needed to prove or
   disprove a suspected defect.
 - Run the checks listed under Commands in `AGENTS.md` when one would settle a
@@ -48,11 +49,12 @@ API with a token exchanged for each user.
 - Beacon errors passed to the client with internal detail.
 - An unexplained number for a limit, timeout or retry.
 
-Anything smaller is a nit.
+Rank a defect that isn't listed by comparing its impact with these examples.
+Only what doesn't change behaviour, security or reliability is a nit.
 
 ## Skip
 
-- `bun.lock`.
+- `bun.lock`, unless it changes without a matching `package.json` change.
 - The `AGENTS.base.md` block at the end of `AGENTS.md`: a copy from the
   `harness` repo. CI already fails if it was edited here.
 - Style, formatting and naming that tooling or the surrounding code already
