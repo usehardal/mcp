@@ -8,9 +8,8 @@ exchanged for that user; the server never talks to Sirius or ClickHouse.
 
 [README.md](README.md) explains connecting, and
 [docs/report-coverage.md](docs/report-coverage.md) maps every tool variant to
-its Beacon operation. Shared rules for all Nebula repos will live in
-`AGENTS.base.md` in the `harness` repo; until it exists, this file and the docs
-it links are the source.
+its Beacon operation. The working style at the end of this file comes from
+`AGENTS.base.md` in the `harness` repo.
 
 ## Commands
 
@@ -100,21 +99,10 @@ need, ask a person; don't work around it.
 
 ## Code Review Rules
 
-Stay read-only: don't edit, stage, commit, push or approve.
-
-- Review only the PR's diff from its merge base. Report a defect only when the
-  diff introduces it or makes it worse, the trigger is realistic, and you can
-  point to the exact lines.
-- P0: a user token, exchanged token or the service private key logged,
-  returned or put in an error; a `/mcp` request served without a valid token
-  for `MCP_RESOURCE`; a report scoped beyond the tenants the user approved.
-- P1: the user's token forwarded instead of exchanged, or an MCP token
-  accepted for the Reports API; calls to Sirius, ClickHouse or Beacon's
-  internal APIs; the per-user rate limit removed or bypassed; a tool name or
-  input schema renamed or removed; tests that call a real Beacon.
-- Don't report style, naming, formatting, missing tests on their own,
-  refactors, or defects that were there before the PR.
-- Report each root cause once. No findings is a valid review.
+Follow [REVIEW.md](REVIEW.md). It defines how to review, what counts as P0,
+P1 and P2 in this repo, what to skip, and the finding and summary format. Post
+only P0 and P1 findings as review comments. Stay read-only: don't edit, stage,
+commit, push or approve.
 
 <!-- BEGIN AGENTS.base.md: edit in harness, not here -->
 ## Working style
