@@ -3,6 +3,7 @@
 // Fails when a file or block copied from usehardal/harness was edited in this
 // repo: it compares each copy with the SHA-256 recorded in .harness/sync.json.
 // Edit the source in harness and run `node sync/sync.mjs` there instead.
+// On a pull request it also checks the branch name.
 import console from "node:console";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -25,7 +26,27 @@ export function extractBlock(text, source) {
   return text.slice(begin, end + endMarker.length);
 }
 
+// A branch is named after its Linear issue: feature/dev-1234 or bug/dev-1234.
+// Dependabot names its own branches; its PRs run as dependabot[bot], so a
+// person can't skip the rule with a dependabot/ name. Returns null for a valid
+// name, and for no name, which is a run outside a pull request.
+export function branchProblem(branch, actor) {
+  if (!branch) return null;
+  if (branch.startsWith("dependabot/") && actor === "dependabot[bot]") return null;
+  if (/^(feature|bug)\/dev-\d+$/.test(branch)) return null;
+  return `Branch ${branch} should be named after its Linear issue: feature/dev-1234 or bug/dev-1234.`;
+}
+
+// Harness CI runs this on its own pull requests; the repos run it in check().
+export function warnOnBranch(env = process.env) {
+  const problem = branchProblem(env.GITHUB_HEAD_REF, env.GITHUB_ACTOR);
+  // Only a warning until the PRs opened with older branch names have merged.
+  if (problem) console.log(`::warning title=Branch name::${problem}`);
+}
+
 function check(repoRoot) {
+  warnOnBranch();
+
   const statePath = join(repoRoot, ".harness", "sync.json");
   if (!existsSync(statePath)) {
     console.error(".harness/sync.json is missing; run `node sync/sync.mjs` in harness.");
