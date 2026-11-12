@@ -38,6 +38,9 @@ API with a token exchanged for each user.
 - Internal hostnames, IP addresses or other non-public details committed to
   this public repo.
 - Tests that call a real Beacon.
+- A change to `.harness/check.mjs` or `.harness/sync.json` that isn't a sync
+  from `harness`: CI trusts the hashes in `sync.json`, so it would accept an
+  edited copy.
 
 **P2, worth fixing:**
 
@@ -50,8 +53,8 @@ Anything smaller is a nit.
 ## Skip
 
 - `bun.lock`.
-- `.harness/**` and the `AGENTS.base.md` block at the end of `AGENTS.md`:
-  copies from the `harness` repo. CI already fails if they were edited here.
+- The `AGENTS.base.md` block at the end of `AGENTS.md`: a copy from the
+  `harness` repo. CI already fails if it was edited here.
 - Style, formatting and naming that tooling or the surrounding code already
   settles; refactoring ideas; missing tests on their own; defects that were
   there before the PR.
@@ -65,7 +68,8 @@ with `path:line`. Never post them as review comments. Drop the rest.
 
 - Only a defect the diff introduces or makes worse, with a realistic trigger.
   One finding per root cause. If you would write "maybe", it is not a finding.
-- Title: `[P1] <the failure, not the topic>`, under 80 characters.
+- Title: the finding's own priority, `[P0]`, `[P1]` or `[P2]`, then the failure
+  rather than the topic, under 80 characters.
 - Location: `path:line` or a short range, on a changed line.
 - One paragraph: the trigger, what happens, and why it matters.
 - Evidence: the execution path, the contract or test it breaks, or a failing
