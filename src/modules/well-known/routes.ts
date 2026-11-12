@@ -3,24 +3,27 @@ import { config } from "../../config";
 
 const SUPPORTED_SCOPES = ["reports:read"];
 
-const protectedResourceMetadata = () => ({
-  resource: config.oauth.mcpResource,
-  authorization_servers: [config.oauth.issuer],
-  scopes_supported: SUPPORTED_SCOPES,
-  bearer_methods_supported: ["header"],
-});
+type ProtectedResourceOptions = {
+  resource: string;
+  issuer: string;
+  metadataPath: string;
+};
 
-const metadataPath = config.oauth.protectedResourceMetadataPath;
-const resourcePath = new URL(config.oauth.mcpResource).pathname;
-const metadataPaths = new Set([
-  metadataPath,
-  `${metadataPath}${config.oauth.legacyMcpPath}`,
-  ...(resourcePath === "/" ? [] : [`${metadataPath}${resourcePath}`]),
-]);
-
-function registerMetadataRoutes(app: Elysia) {
-  for (const path of metadataPaths) app.get(path, protectedResourceMetadata);
-  return app;
+export function createWellKnownRoutes({ resource, issuer, metadataPath }: ProtectedResourceOptions) {
+  const protectedResourceMetadata = () => ({
+    resource,
+    authorization_servers: [issuer],
+    scopes_supported: SUPPORTED_SCOPES,
+    bearer_methods_supported: ["header"],
+  });
+  const resourcePath = new URL(resource).pathname;
+  const routes = new Elysia().get(metadataPath, protectedResourceMetadata);
+  if (resourcePath !== "/") routes.get(`${metadataPath}${resourcePath}`, protectedResourceMetadata);
+  return routes;
 }
 
-export const wellKnownRoutes = registerMetadataRoutes(new Elysia());
+export const wellKnownRoutes = createWellKnownRoutes({
+  resource: config.oauth.mcpResource,
+  issuer: config.oauth.issuer,
+  metadataPath: config.oauth.protectedResourceMetadataPath,
+});

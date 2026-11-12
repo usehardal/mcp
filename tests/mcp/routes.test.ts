@@ -85,6 +85,15 @@ describe("POST /mcp legacy path", () => {
     const res = await post({ authorization: "Bearer mcp-token" }, initialize, "/mcp");
     expect(res.status).toBe(200);
   });
+
+  it("challenges a token issued for the previous /mcp audience so the client signs in again", async () => {
+    introspectionResult = activeTokenFor(`${config.oauth.mcpResource}/mcp`);
+    const res = await post({ authorization: "Bearer previous-audience-token" }, initialize, "/mcp");
+    expect(res.status).toBe(401);
+    expect(res.headers.get("WWW-Authenticate")).toContain("resource_metadata=");
+    const body = (await res.json()) as { error_description?: string };
+    expect(body.error_description).toContain("MCP server");
+  });
 });
 
 const tenantId = "11111111-1111-4111-8111-111111111111";

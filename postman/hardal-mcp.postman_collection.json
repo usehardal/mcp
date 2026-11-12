@@ -44,25 +44,6 @@
               "  pm.expect(body.resource).to.be.a(\"string\").and.not.match(/\\/$/);",
               "  pm.expect(body.authorization_servers).to.have.lengthOf(1);",
               "  pm.expect(body.scopes_supported).to.include(\"reports:read\");",
-              "  pm.collectionVariables.set(\"advertisedResource\", body.resource);",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "Protected resource metadata (legacy /mcp path)",
-      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/.well-known/oauth-protected-resource/mcp" },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test(\"returns the same metadata as the root path\", () => {",
-              "  pm.response.to.have.status(200);",
-              "  pm.expect(pm.response.json().resource).to.eql(pm.collectionVariables.get(\"advertisedResource\"));",
               "});"
             ]
           }

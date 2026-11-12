@@ -35,7 +35,7 @@ https://mcp.usehardal.com
 
 There are no API keys or tokens to copy — sign-in and workspace access are handled through OAuth.
 
-Clients that were connected with the earlier `https://mcp.usehardal.com/mcp` URL keep working; the root URL is the one to publish.
+The earlier `https://mcp.usehardal.com/mcp` URL still answers for clients that accept origin-level resource metadata, as the official MCP SDK does; a session started before the move is asked to sign in again. If your client rejects it, reconnect with the root URL.
 
 ## Tools
 
