@@ -123,4 +123,7 @@ commit, push or approve.
   task asks for it.
 - Say what you verified and how, and what you couldn't verify. Never report a
   check as passing that you didn't run.
+- Name a new branch after its Linear issue: `feature/dev-1234` for a Feature,
+  `bug/dev-1234` for a Bug. Ask for the issue if you don't have one. Leave
+  the issue ID out of commit messages; the branch name already carries it.
 <!-- END AGENTS.base.md -->

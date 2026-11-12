@@ -1,13 +1,13 @@
 {
   "source": "usehardal/harness",
-  "commit": "e2b453ffbf12ff5278d810dddc9e62961ddd2e75",
+  "commit": "aa2655f67fcf632cb655c90959465663253bd64c",
   "files": {
-    ".harness/check.mjs": "3edca22817cdf03a3ec6be3ac19f6e5c16bea0dfde6804ba3448cad182869113"
+    ".harness/check.mjs": "5a102b410c7936bc7ac0b3bfb6abbc2a2e47d42c2d2d63aa5f3d50a00381d3fb"
   },
   "blocks": {
     "AGENTS.md": {
       "source": "AGENTS.base.md",
-      "sha256": "0f75067698f8e1d4d2ead93395f3c2f996df529f5b5643c1d7fbd708ced7ae73"
+      "sha256": "b65f8ae12725abc37679bf9da9db4fa65b33183f9c3aacdbe28e477ad08269e2"
     }
   }
 }
