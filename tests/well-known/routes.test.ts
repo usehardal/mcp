@@ -26,7 +26,7 @@ describe("protected-resource metadata", () => {
     expect(await response.json()).toEqual(metadataFor("https://mcp.test"));
   });
 
-  it("does not advertise a root resource under the legacy /mcp well-known path", async () => {
+  it("serves no path-aware well-known URL for a root resource", async () => {
     const response = await get("https://mcp.test", `${metadataPath}/mcp`);
     expect(response.status).toBe(404);
   });

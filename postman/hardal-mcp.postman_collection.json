@@ -1,17 +1,29 @@
 {
   "info": {
     "name": "Hardal MCP",
-    "description": "HTTP surface of the remote Hardal MCP server: health, OAuth protected-resource metadata, and the streamable-HTTP MCP endpoint at the root URL (with the earlier /mcp path kept as an alias).\n\nSet `accessToken` in a Postman environment to exercise the authenticated requests. Without it they assert the 401 OAuth challenge, which is what CI checks.",
+    "description": "HTTP surface of the remote Hardal MCP server: health, OAuth protected-resource metadata, and the streamable-HTTP MCP endpoint at the root URL.\n\nSet `accessToken` in a Postman environment to exercise the authenticated requests. Without it they assert the 401 OAuth challenge, which is what CI checks.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "https://mcp.usehardal.com", "description": "Origin of the MCP server. Local: http://localhost:1922" },
-    { "key": "accessToken", "value": "", "description": "Beacon access token issued for MCP_RESOURCE. Supply it from an environment; never store it in this file." }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:1922",
+      "description": "Origin of the MCP server. Production: https://mcp.usehardal.com"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "description": "Beacon access token issued for MCP_RESOURCE. Supply it from an environment; never store it in this file."
+    }
   ],
   "item": [
     {
       "name": "Health",
-      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/health" },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/health"
+      },
       "event": [
         {
           "listen": "test",
@@ -31,7 +43,11 @@
     },
     {
       "name": "Protected resource metadata",
-      "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/.well-known/oauth-protected-resource" },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/.well-known/oauth-protected-resource"
+      },
       "event": [
         {
           "listen": "test",
@@ -54,10 +70,25 @@
       "name": "Initialize",
       "request": {
         "method": "POST",
-        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        },
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Accept", "value": "application/json, text/event-stream" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json, text/event-stream"
+          }
         ],
         "body": {
           "mode": "raw",
@@ -90,50 +121,28 @@
       ]
     },
     {
-      "name": "Initialize (legacy /mcp path)",
-      "request": {
-        "method": "POST",
-        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Accept", "value": "application/json, text/event-stream" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"postman\",\"version\":\"1.0.0\"}}}"
-        },
-        "url": "{{baseUrl}}/mcp"
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "if (pm.variables.get(\"accessToken\")) {",
-              "  pm.test(\"still initializes on the legacy path\", () => {",
-              "    pm.response.to.have.status(200);",
-              "    pm.expect(pm.response.json().result.protocolVersion).to.be.a(\"string\");",
-              "  });",
-              "} else {",
-              "  pm.test(\"challenges an unauthenticated call on the legacy path\", () => {",
-              "    pm.response.to.have.status(401);",
-              "    pm.expect(pm.response.headers.get(\"WWW-Authenticate\")).to.include(\"resource_metadata=\\\"\");",
-              "  });",
-              "}"
-            ]
-          }
-        }
-      ]
-    },
-    {
       "name": "List tools",
       "request": {
         "method": "POST",
-        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        },
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Accept", "value": "application/json, text/event-stream" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json, text/event-stream"
+          }
         ],
         "body": {
           "mode": "raw",

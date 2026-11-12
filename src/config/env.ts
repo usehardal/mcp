@@ -49,7 +49,6 @@ export function loadEnv() {
       mcpResource: env.MCP_RESOURCE,
       reportsApiResource: env.REPORTS_API_RESOURCE,
       protectedResourceMetadataPath: "/.well-known/oauth-protected-resource",
-      legacyMcpPath: "/mcp",
     },
     serviceIdentity: {
       clientId: env.SERVICE_CLIENT_ID,

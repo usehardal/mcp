@@ -25,8 +25,7 @@ API with a token exchanged for each user.
 
 - A user token, exchanged token or the service private key logged, returned
   or put in an error.
-- An MCP request (`/` or `/mcp`) served without a valid token for
-  `MCP_RESOURCE`.
+- An MCP request served without a valid token for `MCP_RESOURCE`.
 - A report scoped beyond the tenants the user approved.
 
 **P1, fix before merge:**

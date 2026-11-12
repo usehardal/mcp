@@ -21,9 +21,9 @@ const initialize = {
   },
 };
 
-function post(headers: Record<string, string> = {}, message: object = initialize, path = "/") {
+function post(headers: Record<string, string> = {}, message: object = initialize) {
   return mcpRoutes.handle(
-    new Request(`http://localhost${path}`, {
+    new Request("http://localhost/", {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json, text/event-stream", ...headers },
       body: JSON.stringify(message),
@@ -69,30 +69,6 @@ describe("POST / authentication", () => {
     introspectionResult = activeTokenFor(config.oauth.mcpResource);
     const res = await post({ authorization: "Bearer mcp-token" });
     expect(res.status).toBe(200);
-  });
-});
-
-describe("POST /mcp legacy path", () => {
-  it("challenges a request with no bearer token", async () => {
-    introspectionResult = { active: false };
-    const res = await post({}, initialize, "/mcp");
-    expect(res.status).toBe(401);
-    expect(res.headers.get("WWW-Authenticate")).toContain("resource_metadata=");
-  });
-
-  it("serves the same handler as the root path", async () => {
-    introspectionResult = activeTokenFor(config.oauth.mcpResource);
-    const res = await post({ authorization: "Bearer mcp-token" }, initialize, "/mcp");
-    expect(res.status).toBe(200);
-  });
-
-  it("challenges a token issued for the previous /mcp audience so the client signs in again", async () => {
-    introspectionResult = activeTokenFor(`${config.oauth.mcpResource}/mcp`);
-    const res = await post({ authorization: "Bearer previous-audience-token" }, initialize, "/mcp");
-    expect(res.status).toBe(401);
-    expect(res.headers.get("WWW-Authenticate")).toContain("resource_metadata=");
-    const body = (await res.json()) as { error_description?: string };
-    expect(body.error_description).toContain("MCP server");
   });
 });
 

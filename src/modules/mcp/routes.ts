@@ -27,7 +27,7 @@ function unauthorized(description: string): Response {
   );
 }
 
-async function handleMcpRequest({ request, body }: { request: Request; body: unknown }): Promise<Response> {
+export const mcpRoutes = new Elysia().all("/", async ({ request, body }) => {
   const token = bearerToken(request);
   if (!token) {
     return unauthorized("Authentication is required to use the Hardal MCP server.");
@@ -68,8 +68,4 @@ async function handleMcpRequest({ request, body }: { request: Request; body: unk
       headers: { "Content-Type": "application/json" },
     });
   }
-}
-
-export const mcpRoutes = new Elysia()
-  .all("/", handleMcpRequest)
-  .all(config.oauth.legacyMcpPath, handleMcpRequest);
+});
