@@ -9,7 +9,7 @@ let requests: Mock<typeof reportsClient.reportsApiRequest>;
 type Handler = (
   args: { limit?: number; offset?: number },
   extra: { authInfo?: AuthInfo },
-) => Promise<{ content: Array<{ text: string }>; structuredContent: { tenants: Array<{ reportingCurrency: string | null }> } }>;
+) => Promise<{ content: Array<{ text: string }>; structuredContent: { data: { tenants: Array<{ reportingCurrency: string | null }> } } }>;
 
 function contextHandler(): Handler {
   let captured: Handler | undefined;
@@ -57,6 +57,6 @@ describe("get_context reporting currency", () => {
     expect(summary?.text).toContain("- Store (Acme, ecommerce, USD) — sources: Website");
     expect(summary?.text).toContain("- Blog (Acme, default) — sources: Website");
     expect(summary?.text).not.toContain("null");
-    expect(result.structuredContent.tenants.map((entry) => entry.reportingCurrency)).toEqual(["USD", null]);
+    expect(result.structuredContent.data.tenants.map((entry) => entry.reportingCurrency)).toEqual(["USD", null]);
   });
 });

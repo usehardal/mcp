@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { timezoneOrigin } from "./output/context";
 import { buildReportQuery, calendarDate, DEFAULT_TIMEFRAME, DEFAULT_TIMEZONE, timeRangeInput, type ReportInput } from "./shared";
 
 export { calendarDate };
@@ -77,7 +78,7 @@ export function resolveCalendar(input: CalendarInput, now = new Date()): Calenda
   }
   if (period && "startDate" in period) return validateRange(period);
   if (timeframe === "custom" || startDate !== undefined || endDate !== undefined) {
-    if (!startDate || !endDate) throw new Error("Provide both startDate and endDate for a custom date range.");
+    if (!startDate || !endDate) throw new Error("invalid-date-range: Provide both startDate and endDate for a custom date range.");
     return validateRange({ startDate, endDate });
   }
   const parts = Object.fromEntries(formatter.formatToParts(now).map(({ type, value }) => [type, value]));
@@ -90,7 +91,8 @@ export function resolveCalendar(input: CalendarInput, now = new Date()): Calenda
 
 export function calendarQuery(input: CalendarInput) {
   const range = resolveCalendar(input);
-  return { ...buildReportQuery({ ...input, ...range, timeframe: "custom" }), range };
+  const { query, filters } = buildReportQuery({ ...input, ...range, timeframe: "custom" });
+  return { query, filters, range, scope: { filters, range, timezoneOrigin: timezoneOrigin(input) } };
 }
 
 export function validatePointBudget(range: CalendarRange, interval: z.infer<typeof reportInterval>, series = 1) {

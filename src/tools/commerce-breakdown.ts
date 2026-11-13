@@ -3,7 +3,8 @@ import { reportsApiRequest, type ReportsQuery } from "../reports/client";
 import { openItemSelection, requireReportSettingsVersion, sealItemSelection } from "../reports/item-selection";
 import { calendarKeys, calendarQuery, pickFields, rejectUnsupported } from "./report-arguments";
 import { commerceFilters, commerceGroupFields, commerceSortFields, distributionQuery } from "./report-filters";
-import { pagination, reportResult, reportRows, type ReportRow } from "./report-result";
+import { pagination, reportRows, type ReportRow } from "./report-result";
+import { reportResult } from "./output/result";
 import type { BreakdownInput } from "./get-breakdown-input";
 
 const commerceRowFields = ["item_name", "sku", "item_id", "brand", "category", "price", "quantity", "coupon", "discount", "orders", "items", "revenue", "view_item_count", "add_to_cart_count", "itemCount"];
@@ -44,7 +45,7 @@ export async function commerceBreakdown(
   authInfo: AuthInfo | undefined,
 ) {
   const { limit = 20, offset = 0, sortDirection, selectionId } = input;
-  const { query, filters } = calendarQuery(input);
+  const { query, filters, scope } = calendarQuery(input);
   const columns = input.columns?.map((column) => commerceSortFields.parse(column));
   const sortBy = input.sortBy === undefined ? undefined : commerceSortFields.parse(input.sortBy);
   if (columns && sortBy && !columns.includes(sortBy)) {
@@ -62,8 +63,10 @@ export async function commerceBreakdown(
       columns: columns?.join(","), groupBy, limit, offset,
     });
     const rows = selectionRows(data, authInfo, query, requireReportSettingsVersion(meta), groupBy, selectionFilter.filter);
-    return reportResult({ rows, currency: data.currency, pagination: publicPage(data, rows, limit, offset) }, {
-      filters, fields: { reportType: "commerce", dimension },
+    const page = publicPage(data, rows, limit, offset);
+    return reportResult({ rows, currency: data.currency, pagination: page }, {
+      scope, filters, fields: { reportType: "commerce", dimension },
+      context: { previousRange: data.previousRange, currency: data.currency, pagination: page, applied: { filter: selectionFilter.filter, groupBy, ...sorting } },
     });
   }
 
@@ -90,7 +93,9 @@ export async function commerceBreakdown(
     ? selectionRows(detail, authInfo, query, settingsVersion, undefined,
       item.filterField && item.filterValue ? { field: item.filterField, value: item.filterValue } : undefined)
     : reportRows(detail.rows).map((row) => pickFields(row, attributionFields));
-  return reportResult({ rows, currency: detail.currency, pagination: publicPage(detail, rows, limit, offset) }, {
-    filters, fields: { reportType: "commerce", dimension },
+  const page = publicPage(detail, rows, limit, offset);
+  return reportResult({ rows, currency: detail.currency, pagination: page }, {
+    scope, filters, fields: { reportType: "commerce", dimension },
+    context: { previousRange: data.previousRange, currency: detail.currency, pagination: page, applied: { groupBy: item.groupBy, ...(groupItems ? sorting : {}) } },
   });
 }

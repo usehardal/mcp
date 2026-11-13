@@ -55,7 +55,7 @@ export function buildReportQuery(
   const { startDate, endDate } = input;
   const isCustom = input.timeframe === "custom" || startDate !== undefined || endDate !== undefined;
   if (isCustom && (!startDate || !endDate)) {
-    throw new Error("Provide both startDate and endDate for a custom date range.");
+    throw new Error("invalid-date-range: Provide both startDate and endDate for a custom date range.");
   }
   const timezone = input.timezone ?? DEFAULT_TIMEZONE;
 

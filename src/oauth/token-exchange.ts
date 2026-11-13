@@ -46,7 +46,8 @@ export async function exchangeForReportsApiToken(subjectToken: string): Promise<
 
   const body = (await response.json()) as ExchangeResponse;
   if (!response.ok || !body.access_token) {
-    const reason = body.error_description ?? body.error ?? `HTTP ${response.status}`;
+    const description = body.error_description ?? body.error ?? `HTTP ${response.status}`;
+    const reason = body.error_description && body.error ? `${description} (${body.error})` : description;
     throw new Error(`token exchange failed: ${reason}`);
   }
 

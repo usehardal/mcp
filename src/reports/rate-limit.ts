@@ -1,4 +1,5 @@
 import { config } from "../config";
+import { ToolFailure } from "../tools/output/errors";
 
 const ONE_MINUTE_MS = 60_000;
 
@@ -22,7 +23,11 @@ export function reserveReportRequests(userId: string, requestCount: number): voi
     : { expiresAt: now + ONE_MINUTE_MS, count: 0 };
   if (window.count + requestCount > config.reports.rateLimitPerMinute) {
     const retryAfterSeconds = Math.ceil((window.expiresAt - now) / 1000);
-    throw new Error(`Hardal report request limit reached. Retry in ${retryAfterSeconds} seconds.`);
+    throw new ToolFailure(
+      "quota-exceeded",
+      `Hardal report request limit reached. Retry in ${retryAfterSeconds} seconds.`,
+      { retryAfterSeconds },
+    );
   }
 
   window.count += requestCount;

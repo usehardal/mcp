@@ -6,9 +6,12 @@ import {
   shiftDays, validateRange, type CalendarRange,
 } from "./report-arguments";
 import {
-  acquisitionFilterFields, acquisitionFilters, acquisitionQuery, overviewFilterFields, overviewFilters,
+  acquisitionFilterFields, acquisitionFilters, acquisitionQuery, appliedAcquisitionControls, overviewFilterFields, overviewFilters,
 } from "./report-filters";
-import { toolResult, type ReportRow } from "./report-result";
+import type { ReportRow } from "./report-result";
+import { timezoneOrigin } from "./output/context";
+import { guard, toolResult } from "./output/result";
+import { reportOutput } from "./output/tool-outputs";
 
 import { compareInput, type ComparisonInput } from "./compare-periods-input";
 
@@ -46,8 +49,9 @@ export function registerComparePeriodsTool(server: McpServer) {
       description: "Compare Overview or Acquisition by calendar period and calculate absolute and relative changes.",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
       inputSchema: compareInput,
+      outputSchema: reportOutput,
     },
-    async ({ report = "overview", filters, ...input }, extra) => {
+    guard<typeof compareInput>(async ({ report = "overview", filters, ...input }, extra) => {
       const { currentStart, currentEnd, previousStart, previousEnd, period, comparison } = input;
       const legacyDates = currentStart !== undefined || currentEnd !== undefined || previousStart !== undefined || previousEnd !== undefined;
       if (legacyDates && (period || comparison)) throw new Error("invalid-arguments: Use period and comparison or the four date fields.");
@@ -68,7 +72,8 @@ export function registerComparePeriodsTool(server: McpServer) {
       const allowedFilters = report === "acquisition" ? Object.keys(acquisitionFilterFields) : Object.keys(overviewFilterFields);
       rejectUnsupported(filters, allowedFilters, `${report} period comparison`);
       const acquisition = report === "acquisition" ? acquisitionFilters.parse(filters ?? {}) : undefined;
-      const forwarded = acquisition ? acquisitionQuery(acquisition) : overviewFilters.parse(filters ?? {});
+      const overview = acquisition ? undefined : overviewFilters.parse(filters ?? {});
+      const forwarded = acquisition ? acquisitionQuery(acquisition) : overview;
       const current = buildReportQuery({ ...input, ...currentRange, timeframe: "custom" }, acquisition);
       const previous = buildReportQuery({ ...input, ...previousRange, timeframe: "custom" }, acquisition);
 
@@ -97,7 +102,14 @@ export function registerComparePeriodsTool(server: McpServer) {
           current: { appliedFilters: current.filters, report: currentReport.data },
           previous: { appliedFilters: previous.filters, report: previousReport.data },
         },
+        { filters: current.filters, range: currentRange, timezoneOrigin: timezoneOrigin(input) },
+        {
+          previousRange: { ...previousRange, timezone: current.filters.timezone },
+          interval: "day",
+          applied: acquisition ? appliedAcquisitionControls(acquisition, currentReport.data.controls) : overview,
+          currency: currentReport.data.currency,
+        },
       );
-    },
+    }),
   );
 }

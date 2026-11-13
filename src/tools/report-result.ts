@@ -1,5 +1,3 @@
-import { filtersLine, type ResolvedFilters } from "./shared";
-
 export type ReportRow = Record<string, unknown>;
 
 export function reportRows(value: unknown): ReportRow[] {
@@ -21,26 +19,9 @@ export function pageRows(rows: ReportRow[], limit = 20, offset = 0, complete = t
   return { rows: page, pagination: details };
 }
 
-export function reportResult(
-  report: object,
-  options: { filters?: ResolvedFilters; text?: string; fields?: Record<string, unknown> } = {},
-) {
-  const text = options.text ?? (options.filters ? filtersLine(options.filters) : "Aggregate data only.");
-  const structuredContent = {
-    ...options.fields,
-    ...(options.filters ? { appliedFilters: options.filters } : {}),
-    report,
-  };
-  return toolResult(text, structuredContent);
-}
-
-export function toolResult(text: string, structuredContent: Record<string, unknown>) {
-  const result = {
-    content: [{ type: "text" as const, text }, { type: "text" as const, text: JSON.stringify(structuredContent) }],
-    structuredContent,
-  };
-  if (Buffer.byteLength(JSON.stringify(result)) > 256 * 1024) {
-    throw new Error("response-too-large: Narrow the date range or reduce the number of rows.");
-  }
-  return result;
+export function extendPagination(upstream: unknown, returnedRows: number, fallback: { limit: number; offset: number }) {
+  const page = (upstream ?? {}) as ReportRow;
+  const limit = typeof page.limit === "number" ? page.limit : fallback.limit;
+  const offset = typeof page.offset === "number" ? page.offset : fallback.offset;
+  return pagination(limit, offset, returnedRows, typeof page.total === "number" ? page.total : null);
 }

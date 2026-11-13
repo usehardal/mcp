@@ -1,6 +1,9 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { reportsApiRequest } from "../reports/client";
+import { catalogContext } from "./output/context";
+import { envelope, guard } from "./output/result";
+import { catalogOutput } from "./output/tool-outputs";
 
 type WorkspaceSource = { id: string; name: string; domain: string | null };
 
@@ -16,6 +19,17 @@ type WorkspaceTenant = {
 type WorkspacePage = { tenants: WorkspaceTenant[] };
 
 type WorkspaceMeta = { total: number; limit: number; offset: number; hasNext: boolean };
+
+const contextInput = {
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(100)
+    .optional()
+    .describe("Max tenants per page. Defaults to 50."),
+  offset: z.number().int().min(0).optional().describe("Number of tenants to skip for paging."),
+};
 
 function summarize(tenants: WorkspaceTenant[], meta: WorkspaceMeta): string {
   if (tenants.length === 0) {
@@ -40,28 +54,18 @@ export function registerGetContextTool(server: McpServer) {
       description:
         "List the organizations, tenants and sources this user can query, with each tenant's report type and reporting currency. Call this first and pick the right tenantId before calling any report tool. Returns aggregate workspace metadata only, never visitor-level data.",
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
-      inputSchema: {
-        limit: z
-          .number()
-          .int()
-          .positive()
-          .max(100)
-          .optional()
-          .describe("Max tenants per page. Defaults to 50."),
-        offset: z.number().int().min(0).optional().describe("Number of tenants to skip for paging."),
-      },
+      inputSchema: contextInput,
+      outputSchema: catalogOutput,
     },
-    async ({ limit, offset }, extra) => {
+    guard<typeof contextInput>(async ({ limit, offset }, extra) => {
       const { data, meta } = await reportsApiRequest<WorkspacePage>(extra.authInfo, "/workspace/access", {
         limit,
         offset,
       });
-      const pagination = (meta ?? { total: data.tenants.length, limit: data.tenants.length, offset: 0, hasNext: false }) as WorkspaceMeta;
+      const page = (meta ?? { total: data.tenants.length, limit: data.tenants.length, offset: 0, hasNext: false }) as WorkspaceMeta;
+      const pagination = { ...page, returnedRows: data.tenants.length, hasMore: page.hasNext, truncated: page.hasNext };
 
-      return {
-        content: [{ type: "text", text: summarize(data.tenants, pagination) }],
-        structuredContent: { tenants: data.tenants, pagination },
-      };
-    },
+      return envelope(summarize(data.tenants, page), catalogContext(), { tenants: data.tenants, pagination });
+    }),
   );
 }
