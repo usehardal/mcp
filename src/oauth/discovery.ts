@@ -18,7 +18,7 @@ export async function discoverAuthorizationServer(): Promise<AuthorizationServer
   if (cached) return cached;
 
   const url = `${config.oauth.beaconApiUrl}${DISCOVERY_PATH}`;
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(config.oauth.authTimeoutMs) });
   if (!response.ok) {
     throw new Error(`authorization server discovery failed (HTTP ${response.status})`);
   }

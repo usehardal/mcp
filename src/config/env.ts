@@ -9,6 +9,14 @@ const envSchema = z.object({
   MCP_RESOURCE: z.string().url().default("http://localhost:1922"),
   REPORTS_API_RESOURCE: z.string().url().default("http://localhost:1919/v1"),
   MCP_REPORTS_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(2).default(300),
+  MCP_REPORTS_TENANT_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(2).default(600),
+  MCP_TOOL_DEADLINE_MS: z.coerce.number().int().min(1000).default(20_000),
+  MCP_BEACON_AUTH_TIMEOUT_MS: z.coerce.number().int().min(100).default(5_000),
+  MCP_CONCURRENCY_WAIT_MS: z.coerce.number().int().min(0).default(2_000),
+  MCP_TENANT_MAX_IN_FLIGHT: z.coerce.number().int().min(1).default(3),
+  MCP_USER_MAX_IN_FLIGHT: z.coerce.number().int().min(1).default(2),
+  MCP_UPSTREAM_BODY_LIMIT_BYTES: z.coerce.number().int().min(1024).default(2 * 1024 * 1024),
+  MCP_MAX_REQUEST_BODY_BYTES: z.coerce.number().int().min(1024).default(1024 * 1024),
   MCP_REPORT_SELECTION_KEY: z.union([z.literal(""), z.string().regex(/^[A-Za-z0-9_-]{43}$/)]).optional(),
 
   SERVICE_CLIENT_ID: z.string().min(1).default("hardal-mcp"),
@@ -38,9 +46,16 @@ export function loadEnv() {
     nodeEnv: env.NODE_ENV,
     server: {
       port: env.PORT,
+      maxRequestBodyBytes: env.MCP_MAX_REQUEST_BODY_BYTES,
     },
     reports: {
       rateLimitPerMinute: env.MCP_REPORTS_RATE_LIMIT_PER_MINUTE,
+      tenantRateLimitPerMinute: env.MCP_REPORTS_TENANT_RATE_LIMIT_PER_MINUTE,
+      toolDeadlineMs: env.MCP_TOOL_DEADLINE_MS,
+      concurrencyWaitMs: env.MCP_CONCURRENCY_WAIT_MS,
+      tenantMaxInFlight: env.MCP_TENANT_MAX_IN_FLIGHT,
+      userMaxInFlight: env.MCP_USER_MAX_IN_FLIGHT,
+      upstreamBodyLimitBytes: env.MCP_UPSTREAM_BODY_LIMIT_BYTES,
       selectionKey: env.MCP_REPORT_SELECTION_KEY || undefined,
     },
     oauth: {
@@ -48,6 +63,7 @@ export function loadEnv() {
       beaconApiUrl: env.BEACON_API_URL,
       mcpResource: env.MCP_RESOURCE,
       reportsApiResource: env.REPORTS_API_RESOURCE,
+      authTimeoutMs: env.MCP_BEACON_AUTH_TIMEOUT_MS,
       protectedResourceMetadataPath: "/.well-known/oauth-protected-resource",
     },
     serviceIdentity: {

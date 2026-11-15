@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { resetDiscoveryCache } from "../../src/oauth/discovery";
+import { resetExchangeCache } from "../../src/oauth/exchange-cache";
 
 let introspectionResult: unknown = { active: false };
 
@@ -101,10 +102,11 @@ describe("POST / report requests", () => {
   afterEach(() => {
     config.reports.rateLimitPerMinute = configuredLimit;
     resetDiscoveryCache();
+    resetExchangeCache();
     mock.restore();
   });
 
-  it("shares a user's budget across tokens and reserves both comparison reads before exchange", async () => {
+  it("shares a user's budget across tokens, exchanges once per subject token and reserves both comparison reads", async () => {
     config.reports.rateLimitPerMinute = 2;
     let now = Date.now();
     spyOn(Date, "now").mockImplementation(() => now);
@@ -152,12 +154,12 @@ describe("POST / report requests", () => {
     introspectionResult = activeTokenFor(config.oauth.mcpResource, "report-user-b");
     expect((await callTool("other-user", "compare_periods", compareArgs)).isError).toBeUndefined();
     expect((await callTool("other-user", "get_overview", { tenantId })).isError).toBe(true);
-    expect(exchangedTokens).toEqual(["original", "refreshed", "other-user", "other-user"]);
+    expect(exchangedTokens).toEqual(["original", "refreshed", "other-user"]);
     expect(reportedStartDates.slice(2).sort()).toEqual(["2025-12-01", "2026-01-01"]);
 
     now += 60_000;
     expect((await callTool("other-user", "get_overview", { tenantId })).isError).toBeUndefined();
-    expect(exchangedTokens).toHaveLength(5);
+    expect(exchangedTokens).toEqual(["original", "refreshed", "other-user"]);
   });
 
   it("rejects a single date before contacting the Reports API or exchanging a token", async () => {
@@ -309,6 +311,7 @@ describe("MCP V1 report coverage", () => {
     config.reports.selectionKey = configuredSelectionKey;
     config.reports.rateLimitPerMinute = configuredLimit;
     resetDiscoveryCache();
+    resetExchangeCache();
     mock.restore();
   });
 

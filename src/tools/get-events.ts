@@ -27,7 +27,7 @@ export function registerGetEventsTool(server: McpServer) {
       inputSchema: eventInput,
       outputSchema: reportOutput,
     },
-    guard<typeof eventInput>(async ({ mode = "overview", ...input }, extra) => {
+    guard<typeof eventInput>("get_events", async ({ mode = "overview", ...input }, extra) => {
       if (mode === "options") {
         const { target, search, limit = 20, offset = 0 } = input;
         if (!target) throw new Error("invalid-arguments: Event options require a target.");

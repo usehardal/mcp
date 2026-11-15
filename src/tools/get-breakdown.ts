@@ -256,7 +256,7 @@ export function registerGetBreakdownTool(server: McpServer) {
       inputSchema: breakdownInput,
       outputSchema: reportOutput,
     },
-    guard<typeof breakdownInput>(async ({ mode = "data", report: explicitReport, ...input }, extra) => {
+    guard<typeof breakdownInput>("get_breakdown", async ({ mode = "data", report: explicitReport, ...input }, extra) => {
       if (mode === "options") {
         if (explicitReport) throw new Error("unsupported-filter: Use target for discovery options.");
         return options(input, extra.authInfo);

@@ -1,4 +1,5 @@
 import { config } from "../config";
+import { toolCallContext } from "../reports/tool-call";
 import {
   CLIENT_ASSERTION_TYPE_JWT_BEARER,
   GRANT_TYPE_TOKEN_EXCHANGE,
@@ -25,12 +26,15 @@ type ExchangeResponse = {
 };
 
 export async function exchangeForReportsApiToken(subjectToken: string): Promise<DelegatedToken> {
+  const context = toolCallContext();
+  if (context) context.exchanges += 1;
   const metadata = await discoverAuthorizationServer();
   const assertion = await createServiceAssertion(metadata.token_endpoint);
 
   const response = await fetch(metadata.token_endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    signal: AbortSignal.timeout(config.oauth.authTimeoutMs),
     body: new URLSearchParams({
       grant_type: GRANT_TYPE_TOKEN_EXCHANGE,
       subject_token: subjectToken,

@@ -18,7 +18,7 @@ export function registerGetFunnelsTool(server: McpServer) {
       inputSchema: funnelsInput,
       outputSchema: reportOutput,
     },
-    guard<typeof funnelsInput>(async ({ mode: requestedMode, funnelId, ...input }, extra) => {
+    guard<typeof funnelsInput>("get_funnels", async ({ mode: requestedMode, funnelId, ...input }, extra) => {
       const mode = requestedMode ?? (funnelId ? "saved" : "list");
       const { tenantId, sourceId, limit, offset, breakdown, definition } = input;
       if (mode === "list") {
