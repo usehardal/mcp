@@ -70,7 +70,11 @@ function grantedTenantId(args: Record<string, unknown> | undefined, authInfo: Au
   const requested = args?.tenantId;
   if (typeof requested !== "string") return undefined;
   const granted = authInfo?.extra?.tenantIds;
-  return Array.isArray(granted) && granted.includes(requested) ? requested : undefined;
+  if (!Array.isArray(granted)) return undefined;
+  if (!granted.includes(requested)) {
+    throw new ToolFailure("access-denied", "This sign-in does not grant the requested tenant. Call get_context to list authorized tenants.");
+  }
+  return requested;
 }
 
 function admissionKeys(authInfo: AuthInfo | undefined, tenantId: string | undefined): AdmissionKey[] {
