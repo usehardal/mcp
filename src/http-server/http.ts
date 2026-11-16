@@ -16,7 +16,10 @@ export class HttpServer {
       return;
     }
 
-    this.server = this.app.listen(config.server.port, () => {
+    this.server = this.app.listen({
+      port: config.server.port,
+      maxRequestBodySize: config.server.maxRequestBodyBytes,
+    }, () => {
       logger.info(`Hardal MCP ready on port ${config.server.port}`, {
         issuer: config.oauth.issuer,
         resource: config.oauth.mcpResource,

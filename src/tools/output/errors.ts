@@ -7,11 +7,14 @@ export const SCHEMA_VERSION = "1.0.0";
 export const toolErrorCodes = [
   "invalid-arguments", "unsupported-filter", "invalid-date-range", "invalid-timezone", "range-too-large",
   "invalid-pagination", "access-denied", "resource-not-found", "selection-expired", "quota-exceeded",
+  "tenant-busy", "deadline-exceeded",
   "upstream-unavailable", "response-too-large", "currency-unavailable", "feature-unavailable", "upstream-contract-mismatch",
 ] as const;
 export type ToolErrorCode = (typeof toolErrorCodes)[number];
 
-const retryableCodes: ReadonlySet<ToolErrorCode> = new Set(["quota-exceeded", "upstream-unavailable"]);
+const retryableCodes: ReadonlySet<ToolErrorCode> = new Set([
+  "quota-exceeded", "tenant-busy", "deadline-exceeded", "upstream-unavailable",
+]);
 const codedMessage = /^([a-z]+(?:-[a-z]+)*): (.+)$/s;
 const maxFields = 20;
 

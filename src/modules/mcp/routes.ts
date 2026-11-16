@@ -4,7 +4,7 @@ import { Elysia } from "elysia";
 import { config } from "../../config";
 import { logger } from "../../common/logger";
 import { bearerChallenge } from "../../oauth/challenge";
-import { introspectToken } from "../../oauth/introspection";
+import { introspectToken, type IntrospectionResult } from "../../oauth/introspection";
 import { createMcpServer } from "../../mcp/server";
 
 const BEARER_SCHEME = /^Bearer\s+(\S+)$/i;
@@ -33,7 +33,18 @@ export const mcpRoutes = new Elysia().all("/", async ({ request, body }) => {
     return unauthorized("Authentication is required to use the Hardal MCP server.");
   }
 
-  const introspection = await introspectToken(token);
+  let introspection: IntrospectionResult;
+  try {
+    introspection = await introspectToken(token);
+  } catch (error) {
+    logger.warn("Introspection unavailable", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return new Response(
+      JSON.stringify({ error: "server_error", error_description: "Hardal could not verify the sign-in. Try again shortly." }),
+      { status: 503, headers: { "Content-Type": "application/json" } },
+    );
+  }
   if (!introspection.active) {
     return unauthorized("The token is invalid, expired or revoked.");
   }

@@ -1,9 +1,13 @@
 import { describe, expect, it } from "bun:test";
+import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import type { ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { reportContext, type ReportScope } from "../../src/tools/output/context";
 import { normalizePaths, nullPointers } from "../../src/tools/output/data";
 import { ToolFailure, errorResult, toolFailure } from "../../src/tools/output/errors";
-import { envelope, reportResult } from "../../src/tools/output/result";
+import { envelope, guard, reportResult } from "../../src/tools/output/result";
 
 const scope: ReportScope = {
   filters: { tenantId: "tenant-1", sourceId: "all", range: "2026-04-01 to 2026-04-07", timezone: "Europe/Istanbul" },
@@ -111,5 +115,42 @@ describe("envelope", () => {
       reportType: "pages", appliedFilters: scope.filters, report: { scoreCards: { sessions: 0 }, pagePath: "/p" },
     });
     expect((result.structuredContent?.context as { redactedLabels: number }).redactedLabels).toBe(1);
+  });
+});
+
+describe("guard", () => {
+  const grantedTenant = "11111111-1111-4111-8111-111111111111";
+  const revokedTenant = "22222222-2222-4222-8222-222222222222";
+
+  function callGuarded(tenantId: string, tenantIds: string[]) {
+    let handlerCalls = 0;
+    const handler = (async () => {
+      handlerCalls += 1;
+      return envelope("ok", {}, {});
+    }) as ToolCallback<ZodRawShapeCompat>;
+    const guarded = guard<ZodRawShapeCompat>("get_overview", handler) as unknown as (
+      args: Record<string, unknown>,
+      extra: { authInfo: AuthInfo },
+    ) => Promise<CallToolResult>;
+    const authInfo: AuthInfo = {
+      token: "mcp-token", clientId: "client-1", scopes: ["reports:read"],
+      extra: { userId: "user-1", tenantIds },
+    };
+    return { result: guarded({ tenantId }, { authInfo }), handlerCalls: () => handlerCalls };
+  }
+
+  it("rejects a tenantId outside the introspected grant list before the handler runs", async () => {
+    const { result, handlerCalls } = callGuarded(revokedTenant, [grantedTenant]);
+    const outcome = await result;
+    expect(outcome.isError).toBe(true);
+    expect((outcome.content[0] as { text: string }).text).toStartWith("access-denied:");
+    expect(handlerCalls()).toBe(0);
+  });
+
+  it("runs the handler when the tenantId is in the grant list", async () => {
+    const { result, handlerCalls } = callGuarded(grantedTenant, [grantedTenant]);
+    const outcome = await result;
+    expect(outcome.isError).toBeUndefined();
+    expect(handlerCalls()).toBe(1);
   });
 });

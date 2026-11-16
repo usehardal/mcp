@@ -40,8 +40,11 @@ metadata and that an unauthenticated `POST /` gets 401; see
   file.
 - Tenants and sources are UUIDs, and every report is scoped to tenants the
   user approved at sign-in.
-- Report calls are rate limited per user per replica
-  (`MCP_REPORTS_RATE_LIMIT_PER_MINUTE`, minimum 2).
+- Report calls are bounded per replica: per-user and per-tenant minute
+  windows (`MCP_REPORTS_RATE_LIMIT_PER_MINUTE`,
+  `MCP_REPORTS_TENANT_RATE_LIMIT_PER_MINUTE`), in-flight caps with a bounded
+  wait, and one `MCP_TOOL_DEADLINE_MS` budget per tool call. The
+  authoritative cross-replica quota lives in Beacon.
 - Tool names and input schemas are a public contract for connected clients;
   rename or remove one only with a decision on the issue.
 

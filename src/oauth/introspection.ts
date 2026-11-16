@@ -1,3 +1,4 @@
+import { config } from "../config";
 import { CLIENT_ASSERTION_TYPE_JWT_BEARER } from "./constants";
 import { discoverAuthorizationServer } from "./discovery";
 import { createServiceAssertion } from "./service-assertion";
@@ -31,6 +32,7 @@ export async function introspectToken(token: string): Promise<IntrospectionResul
   const response = await fetch(metadata.introspection_endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    signal: AbortSignal.timeout(config.oauth.authTimeoutMs),
     body: new URLSearchParams({
       token,
       client_assertion_type: CLIENT_ASSERTION_TYPE_JWT_BEARER,

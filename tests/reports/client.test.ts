@@ -2,14 +2,19 @@ import { afterEach, describe, expect, it, spyOn } from "bun:test";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { config } from "../../src/config";
 import { resetDiscoveryCache } from "../../src/oauth/discovery";
+import { resetExchangeCache } from "../../src/oauth/exchange-cache";
 import { reportsApiRequest } from "../../src/reports/client";
+import { runToolCall } from "../../src/reports/tool-call";
 import { ToolFailure } from "../../src/tools/output/errors";
 
 const authInfo: AuthInfo = { token: "mcp-token", clientId: "client-1", scopes: ["reports:read"], extra: { userId: "client-user" } };
 
-function stubBeacon(report: () => Response, exchange: () => Response = () => Response.json({ access_token: "delegated", expires_in: 300 })) {
+function stubBeacon(
+  report: (init?: RequestInit) => Response | Promise<Response>,
+  exchange: () => Response = () => Response.json({ access_token: "delegated", expires_in: 300 }),
+) {
   const beacon = config.oauth.beaconApiUrl;
-  return spyOn(globalThis, "fetch").mockImplementation((async (input: RequestInfo | URL) => {
+  return spyOn(globalThis, "fetch").mockImplementation((async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url === `${beacon}/.well-known/oauth-authorization-server`) {
       return Response.json({
@@ -19,7 +24,7 @@ function stubBeacon(report: () => Response, exchange: () => Response = () => Res
       });
     }
     if (url === `${beacon}/oauth/token`) return exchange();
-    return report();
+    return report(init);
   }) as typeof fetch);
 }
 
@@ -35,6 +40,7 @@ async function failure(promise: Promise<unknown>): Promise<ToolFailure> {
 
 afterEach(() => {
   resetDiscoveryCache();
+  resetExchangeCache();
 });
 
 describe("reportsApiRequest failures", () => {
@@ -64,6 +70,7 @@ describe("reportsApiRequest failures", () => {
       expect(error).toMatchObject({ code: "quota-exceeded", retryAfterSeconds: 17 });
     } finally {
       limited.mockRestore();
+      resetExchangeCache();
     }
     const revoked = stubBeacon(
       () => Response.json({ success: true, data: {} }),
@@ -97,5 +104,82 @@ describe("reportsApiRequest failures", () => {
       odd.mockRestore();
     }
     expect((await failure(reportsApiRequest(undefined, "/reports/overview"))).code).toBe("access-denied");
+  });
+});
+
+describe("reportsApiRequest bounds", () => {
+  const configuredBodyLimit = config.reports.upstreamBodyLimitBytes;
+  const configuredDeadline = config.reports.toolDeadlineMs;
+  const configuredTenantLimit = config.reports.tenantRateLimitPerMinute;
+
+  afterEach(() => {
+    config.reports.upstreamBodyLimitBytes = configuredBodyLimit;
+    config.reports.toolDeadlineMs = configuredDeadline;
+    config.reports.tenantRateLimitPerMinute = configuredTenantLimit;
+  });
+
+  it("rejects an oversized report body from the declared length and while streaming", async () => {
+    config.reports.upstreamBodyLimitBytes = 64;
+    const huge = JSON.stringify({ success: true, data: { rows: "x".repeat(400) } });
+    const declared = stubBeacon(() => new Response(huge, {
+      headers: { "content-type": "application/json", "content-length": String(Buffer.byteLength(huge)) },
+    }));
+    try {
+      expect((await failure(reportsApiRequest(authInfo, "/reports/overview"))).code).toBe("response-too-large");
+    } finally {
+      declared.mockRestore();
+      resetExchangeCache();
+    }
+
+    const streamed = stubBeacon(() => new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(huge));
+        controller.close();
+      },
+    }), { headers: { "content-type": "application/json" } }));
+    try {
+      expect((await failure(reportsApiRequest(authInfo, "/reports/overview"))).code).toBe("response-too-large");
+    } finally {
+      streamed.mockRestore();
+    }
+  });
+
+  it("maps a report fetch aborted by the tool budget to deadline-exceeded", async () => {
+    config.reports.toolDeadlineMs = 1000;
+    const fetchSpy = stubBeacon((init) => new Promise<Response>((resolve, reject) => {
+      const timer = setTimeout(() => resolve(Response.json({ success: true, data: {} })), 5000);
+      init?.signal?.addEventListener("abort", () => {
+        clearTimeout(timer);
+        reject(new DOMException("The operation timed out.", "TimeoutError"));
+      });
+    }));
+    try {
+      const error = await runToolCall({}, () => reportsApiRequest(authInfo, "/reports/overview").then(
+        () => undefined,
+        (reason: unknown) => reason,
+      ));
+      expect(error).toBeInstanceOf(ToolFailure);
+      expect((error as ToolFailure).code).toBe("deadline-exceeded");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  }, 4000);
+
+  it("counts tenant-scoped requests of every user against the tenant minute window", async () => {
+    config.reports.tenantRateLimitPerMinute = 2;
+    const fetchSpy = stubBeacon(() => Response.json({ success: true, data: {} }));
+    const otherUser = { ...authInfo, extra: { userId: "second-user" } };
+    try {
+      await runToolCall({ tenantId: "window-tenant-1" }, () => reportsApiRequest(authInfo, "/reports/overview"));
+      await runToolCall({ tenantId: "window-tenant-1" }, () => reportsApiRequest(otherUser, "/reports/overview"));
+      const error = await failure(
+        runToolCall({ tenantId: "window-tenant-1" }, () => reportsApiRequest(authInfo, "/reports/overview")),
+      );
+      expect(error).toMatchObject({ code: "quota-exceeded" });
+      expect(error.message).toContain("workspace");
+      await runToolCall({ tenantId: "window-tenant-2" }, () => reportsApiRequest(authInfo, "/reports/overview"));
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });

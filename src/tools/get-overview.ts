@@ -32,7 +32,7 @@ export function registerGetOverviewTool(server: McpServer) {
       inputSchema: overviewInput,
       outputSchema: reportOutput,
     },
-    guard<typeof overviewInput>(async ({ report = "overview", ...input }, extra) => {
+    guard<typeof overviewInput>("get_overview", async ({ report = "overview", ...input }, extra) => {
       if (report === "realtime") {
         rejectUnsupported(input, [...scopeKeys, "windowMinutes"], report);
         const { tenantId, sourceId, windowMinutes = 5 } = input;
