@@ -38,14 +38,16 @@ export function branchProblem(branch, actor) {
 }
 
 // Harness CI runs this on its own pull requests; the repos run it in check().
-export function warnOnBranch(env = process.env) {
+// Returns the exit status: 1 for a branch named another way.
+export function checkBranch(env = process.env) {
   const problem = branchProblem(env.GITHUB_HEAD_REF, env.GITHUB_ACTOR);
-  // Only a warning until the PRs opened with older branch names have merged.
-  if (problem) console.log(`::warning title=Branch name::${problem}`);
+  if (!problem) return 0;
+  console.log(`::error title=Branch name::${problem}`);
+  return 1;
 }
 
 function check(repoRoot) {
-  warnOnBranch();
+  const branchStatus = checkBranch();
 
   const statePath = join(repoRoot, ".harness", "sync.json");
   if (!existsSync(statePath)) {
@@ -77,7 +79,7 @@ function check(repoRoot) {
     return 1;
   }
   console.log(`Harness copies match usehardal/harness ${state.commit.slice(0, 7)}.`);
-  return 0;
+  return branchStatus;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
