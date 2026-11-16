@@ -129,4 +129,6 @@ commit, push or approve.
 - Name a new branch after its Linear issue: `feature/dev-1234` for a Feature,
   `bug/dev-1234` for a Bug. Ask for the issue if you don't have one. Leave
   the issue ID out of commit messages; the branch name already carries it.
+- Open a PR with the repo's `.github/pull_request_template.md` filled in,
+  every section answered; the author reviews it before asking for approval.
 <!-- END AGENTS.base.md -->
