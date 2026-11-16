@@ -51,7 +51,7 @@ export function registerComparePeriodsTool(server: McpServer) {
       inputSchema: compareInput,
       outputSchema: reportOutput,
     },
-    guard<typeof compareInput>(async ({ report = "overview", filters, ...input }, extra) => {
+    guard<typeof compareInput>("compare_periods", async ({ report = "overview", filters, ...input }, extra) => {
       const { currentStart, currentEnd, previousStart, previousEnd, period, comparison } = input;
       const legacyDates = currentStart !== undefined || currentEnd !== undefined || previousStart !== undefined || previousEnd !== undefined;
       if (legacyDates && (period || comparison)) throw new Error("invalid-arguments: Use period and comparison or the four date fields.");

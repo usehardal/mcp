@@ -57,7 +57,7 @@ export function registerGetContextTool(server: McpServer) {
       inputSchema: contextInput,
       outputSchema: catalogOutput,
     },
-    guard<typeof contextInput>(async ({ limit, offset }, extra) => {
+    guard<typeof contextInput>("get_context", async ({ limit, offset }, extra) => {
       const { data, meta } = await reportsApiRequest<WorkspacePage>(extra.authInfo, "/workspace/access", {
         limit,
         offset,

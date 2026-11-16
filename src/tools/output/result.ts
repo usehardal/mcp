@@ -1,7 +1,11 @@
 import type { ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import type { AnySchema, ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { logger } from "../../common/logger";
+import { config } from "../../config";
+import { admitToolCall, type AdmissionKey } from "../../reports/limits";
+import { runToolCall } from "../../reports/tool-call";
 import { filtersLine, type ResolvedFilters } from "../shared";
 import { reportContext, reportContextSchema, type ContextOptions, type ReportScope } from "./context";
 import { normalizePaths, nullPointers, shape } from "./data";
@@ -62,15 +66,64 @@ export function reportResult(
   return finish(text, data, options.scope, options.context ?? {}, (shaped) => shaped.report, "/data/report");
 }
 
-export function guard<Args extends ZodRawShapeCompat | AnySchema>(handler: ToolCallback<Args>): ToolCallback<Args> {
+function grantedTenantId(args: Record<string, unknown> | undefined, authInfo: AuthInfo | undefined): string | undefined {
+  const requested = args?.tenantId;
+  if (typeof requested !== "string") return undefined;
+  const granted = authInfo?.extra?.tenantIds;
+  if (!Array.isArray(granted)) return undefined;
+  if (!granted.includes(requested)) {
+    throw new ToolFailure("access-denied", "This sign-in does not grant the requested tenant. Call get_context to list authorized tenants.");
+  }
+  return requested;
+}
+
+function admissionKeys(authInfo: AuthInfo | undefined, tenantId: string | undefined): AdmissionKey[] {
+  const userId = authInfo?.extra?.userId;
+  const keys: AdmissionKey[] = [];
+  if (typeof userId === "string" && userId) keys.push({ key: `user:${userId}`, cap: config.reports.userMaxInFlight });
+  if (tenantId) keys.push({ key: `tenant:${tenantId}`, cap: config.reports.tenantMaxInFlight });
+  return keys;
+}
+
+export function guard<Args extends ZodRawShapeCompat | AnySchema>(name: string, handler: ToolCallback<Args>): ToolCallback<Args> {
   const call = handler as (...params: unknown[]) => CallToolResult | Promise<CallToolResult>;
   const guarded = async (...params: unknown[]): Promise<CallToolResult> => {
+    const args = params[0] as Record<string, unknown> | undefined;
+    const extra = params[1] as { authInfo?: AuthInfo } | undefined;
+    const startedAt = performance.now();
+    const counters = { upstreamRequests: 0, exchanges: 0 };
+    let outcome = "ok";
     try {
-      return await call(...params);
+      return await runToolCall({ tenantId: grantedTenantId(args, extra?.authInfo) }, async (context) => {
+        const release = await admitToolCall(admissionKeys(extra?.authInfo, context.tenantId), {
+          waitMs: config.reports.concurrencyWaitMs,
+          signal: context.signal,
+        });
+        try {
+          return await call(...params);
+        } finally {
+          counters.upstreamRequests = context.upstreamRequests;
+          counters.exchanges = context.exchanges;
+          release();
+        }
+      });
     } catch (error) {
       const failure = toolFailure(error);
+      outcome = failure.code;
       if (failure.code === "upstream-unavailable") logger.warn("Upstream report request failed", { code: failure.code, message: failure.message });
       return errorResult(failure);
+    } finally {
+      const variant = typeof args?.report === "string"
+        ? args.report
+        : typeof args?.mode === "string" ? args.mode : undefined;
+      logger.info("tool_call", {
+        tool: name,
+        ...(variant ? { variant } : {}),
+        durationMs: Math.round(performance.now() - startedAt),
+        outcome,
+        upstreamRequests: counters.upstreamRequests,
+        exchanges: counters.exchanges,
+      });
     }
   };
   return guarded as unknown as ToolCallback<Args>;

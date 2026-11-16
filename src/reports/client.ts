@@ -1,8 +1,9 @@
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { config } from "../config";
-import { exchangeForReportsApiToken } from "../oauth/token-exchange";
+import { exchangeReportsApiToken } from "../oauth/exchange-cache";
 import { ToolFailure } from "../tools/output/errors";
-import { reserveReportRequests } from "./rate-limit";
+import { reserveReportRequests, reserveTenantReportRequests } from "./rate-limit";
+import { awaitWithDeadline, deadlineFailure, toolCallContext } from "./tool-call";
 
 export type ReportsApiResult<T> = {
   data: T;
@@ -51,10 +52,13 @@ function authorizeReportRequests(authInfo: AuthInfo | undefined, requestCount: n
   }
 
   reserveReportRequests(userId, requestCount);
+  const tenantId = toolCallContext()?.tenantId;
+  if (tenantId) reserveTenantReportRequests(tenantId, requestCount);
   return authInfo.token;
 }
 
 function exchangeFailure(error: unknown): ToolFailure {
+  if (error instanceof ToolFailure) return error;
   const message = error instanceof Error ? error.message : "";
   return deniedExchange.test(message)
     ? new ToolFailure("access-denied", "The Hardal sign-in no longer authorizes report requests. Sign in again.")
@@ -85,25 +89,69 @@ function upstreamFailure(response: Response, code: unknown): ToolFailure {
   return new ToolFailure("invalid-arguments", `Beacon rejected the report request${reason}.`);
 }
 
+function bodyTooLarge(): ToolFailure {
+  return new ToolFailure("response-too-large", "The report response is too large. Narrow the date range or reduce the number of rows.");
+}
+
+function unreachable(signal: AbortSignal | undefined): ToolFailure {
+  return signal?.aborted
+    ? deadlineFailure()
+    : new ToolFailure("upstream-unavailable", "Beacon is unreachable. Try again shortly.");
+}
+
+async function readEnvelope<T>(
+  response: Response,
+  signal: AbortSignal | undefined,
+): Promise<ReportsApiEnvelope<T> | null> {
+  const limit = config.reports.upstreamBodyLimitBytes;
+  const contentLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > limit) throw bodyTooLarge();
+  if (!response.body) return null;
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read().catch(() => {
+      throw unreachable(signal);
+    });
+    if (done || !value) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel().catch(() => undefined);
+      throw bodyTooLarge();
+    }
+    chunks.push(value);
+  }
+
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString()) as ReportsApiEnvelope<T>;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchReport<T>(
   subjectToken: string,
   request: ReportRequest,
 ): Promise<ReportsApiResult<T>> {
-  const delegated = await exchangeForReportsApiToken(subjectToken).catch((error: unknown) => {
+  const delegated = await awaitWithDeadline(exchangeReportsApiToken(subjectToken)).catch((error: unknown) => {
     throw exchangeFailure(error);
   });
+  const context = toolCallContext();
+  if (context) context.upstreamRequests += 1;
   const headers = new Headers({ Authorization: `Bearer ${delegated.accessToken}` });
-  const init: RequestInit = { headers };
+  const init: RequestInit = { headers, signal: context?.signal };
   if (request.method === "POST") {
     headers.set("Content-Type", "application/json");
     init.method = request.method;
     init.body = JSON.stringify(request.body);
   }
   const response = await fetch(buildUrl(request.path, request.query), init).catch(() => {
-    throw new ToolFailure("upstream-unavailable", "Beacon is unreachable. Try again shortly.");
+    throw unreachable(context?.signal);
   });
 
-  const body = (await response.json().catch(() => null)) as ReportsApiEnvelope<T> | null;
+  const body = await readEnvelope<T>(response, context?.signal);
   if (!response.ok || body?.success !== true || body.data === undefined) {
     throw upstreamFailure(response, body?.error?.code);
   }
