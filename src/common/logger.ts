@@ -7,7 +7,24 @@ const levelPriority: Record<LogLevel, number> = {
   error: 40,
 };
 
-const envLevel = (process.env.LOG_LEVEL as LogLevel) || "info";
+function isLogLevel(value: string): value is LogLevel {
+  return Object.keys(levelPriority).includes(value);
+}
+
+export function parseLogLevel(value: string | undefined): LogLevel {
+  if (!value) {
+    return "info";
+  }
+  if (isLogLevel(value)) {
+    return value;
+  }
+  console.warn(
+    `LOG_LEVEL "${value}" is not one of ${Object.keys(levelPriority).join(", ")}; using info`,
+  );
+  return "info";
+}
+
+const envLevel = parseLogLevel(process.env.LOG_LEVEL);
 
 function shouldLog(level: LogLevel) {
   return levelPriority[level] >= levelPriority[envLevel];
