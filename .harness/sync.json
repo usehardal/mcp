@@ -1,6 +1,6 @@
 {
   "source": "usehardal/harness",
-  "commit": "e990c064205b87763e276b96733d969a4136d868",
+  "commit": "8c2b1d3bb801ba3cdc3df61e52f79c5b0e7709f7",
   "files": {
     ".harness/check.mjs": "4507d06524cd3a27d824de1df9e8fbcbeb10cd6f0618d46c7806ebdcd2e04d15",
     ".github/pull_request_template.md": "a7a3de47e4d6db2d765a7b926bd69a7f3098386b450264de76a2d90cbe765703"
@@ -8,7 +8,7 @@
   "blocks": {
     "AGENTS.md": {
       "source": "AGENTS.base.md",
-      "sha256": "2f249d90cc853a204fc9fcbc313377d6e0f76c73e7eca6a5bd1d6ecfe863fc98"
+      "sha256": "f6f658821550ea811483e1dc12e8c7ab064b266bd956bfd0252932321ecb9ce4"
     }
   }
 }
