@@ -1,8 +1,8 @@
 {
   "source": "usehardal/harness",
-  "commit": "8fa5dcaf927a2e42670a592dc039efa454e907d8",
+  "commit": "ce8b35eec3761b3cba49f36b2a23aa5b0634cdf3",
   "files": {
-    ".harness/check.mjs": "b97a56c01e0f8d75c61b3d58b76484fd2f4fb2205a6fac3b10e2556e2bb20401",
+    ".harness/check.mjs": "4507d06524cd3a27d824de1df9e8fbcbeb10cd6f0618d46c7806ebdcd2e04d15",
     ".github/pull_request_template.md": "a2c5b84f285838c7d8a39235cd9a0aa716bd7f84ca7e27403b8ba6b93f24d6e8"
   },
   "blocks": {

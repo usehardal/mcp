@@ -62,8 +62,9 @@ const NOT_COUNTED = [
   /^\.harness\//,
 ];
 
-// Warnings for a PR's `git diff --numstat`, as [title, message] pairs. `synced`
-// lists the files harness copies into the repo; they don't count either.
+// Warnings for a PR's `git diff --numstat`, as [title, message, file] triples;
+// file is set when the warning belongs on one changed file. `synced` lists the
+// files harness copies into the repo; they don't count either.
 export function diffWarnings(numstat, synced = []) {
   const changes = numstat
     .split("\n")
@@ -86,15 +87,61 @@ export function diffWarnings(numstat, synced = []) {
   }
 
   const routes = changes.map(({ path }) => path).filter((path) => /(^|\/)routes\.ts$/.test(path));
-  if (routes.length > 0 && !changes.some(({ path }) => path.startsWith("postman/"))) {
-    warnings.push([
-      "Postman",
-      `This PR changes ${routes.join(", ")} but nothing under postman/. ` +
-        "An endpoint change updates the Postman collection in the same PR.",
-    ]);
+  if (!changes.some(({ path }) => path.startsWith("postman/"))) {
+    for (const path of routes) {
+      warnings.push([
+        "Postman",
+        `This PR changes ${path} but nothing under postman/. ` +
+          "An endpoint change updates the Postman collection in the same PR.",
+        path,
+      ]);
+    }
   }
   return warnings;
 }
+
+const HUNK = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/m;
+
+// The line of `file` where the PR's first change starts, so the warning shows
+// there in the PR's "Files changed". GitHub places it on the PR's head commit
+// (the merge commit's second parent), so a line found in the merge commit is
+// moved past what the base branch added or removed above it since the PR
+// branched. 1 when the diff can't be read, and null when the PR deletes the
+// file, since a line of it can't be shown.
+function firstChangedLine(sha, file, cwd) {
+  try {
+    execFileSync("git", ["cat-file", "-e", `${sha}:${file}`], { cwd, stdio: "ignore" });
+  } catch {
+    return null;
+  }
+  const diff = (from, to) =>
+    execFileSync("git", ["diff", "--unified=0", from, to, "--", file], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+  try {
+    const line = Number(HUNK.exec(diff(`${sha}^1`, sha))?.[3] ?? 1);
+    let shift = 0;
+    for (const [, oldStart, oldCount = "1", newStart, newCount = "1"] of diff(sha, `${sha}^2`).matchAll(
+      new RegExp(HUNK.source, "gm"),
+    )) {
+      const start = Number(oldStart);
+      const count = Number(oldCount);
+      if (count === 0 ? start >= line : start > line) break;
+      if (count > 0 && start + count - 1 >= line) return Math.max(1, Number(newStart));
+      shift += Number(newCount) - count;
+    }
+    return Math.max(1, line + shift);
+  } catch {
+    return 1;
+  }
+}
+
+// Workflow command property values escape these characters; messages escape
+// only %, CR and LF.
+const escapeData = (text) => text.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
+const escapeProperty = (text) => escapeData(text).replaceAll(":", "%3A").replaceAll(",", "%2C");
 
 // On a pull request, GITHUB_SHA is the merge commit and actions/checkout fetched
 // only that commit; one more level of history gives its first parent, the base.
@@ -113,7 +160,11 @@ export function warnOnDiff(env = process.env, synced = [], cwd = process.cwd()) 
     console.log("::notice title=PR size::Couldn't read this pull request's diff, so its size and Postman changes weren't checked.");
     return;
   }
-  for (const [title, message] of diffWarnings(numstat, synced)) console.log(`::warning title=${title}::${message}`);
+  for (const [title, message, file] of diffWarnings(numstat, synced)) {
+    const line = file && firstChangedLine(env.GITHUB_SHA, file, cwd);
+    const where = line ? `file=${escapeProperty(file)},line=${line},` : "";
+    console.log(`::warning ${where}title=${title}::${escapeData(message)}`);
+  }
 }
 
 function check(repoRoot) {
