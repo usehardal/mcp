@@ -129,6 +129,10 @@ protects, its trust boundaries and the patterns to flag.
   task asks for it.
 - Say what you verified and how, and what you couldn't verify. Never report a
   check as passing that you didn't run.
+- Before coding an issue estimated M or larger, put its plan in the issue and
+  get it approved by a second person (the `plan-approval` skill where the
+  repo has it). Urgent work may start first and gets its plan once the risk
+  is controlled.
 - Name a new branch after its Linear issue: `feature/dev-1234` for a Feature,
   `bug/dev-1234` for a Bug. Ask for the issue if you don't have one. Leave
   the issue ID out of commit messages; the branch name already carries it.
