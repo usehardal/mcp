@@ -13,8 +13,26 @@ import { overviewInput } from "./get-overview-input";
 
 const defaultPageTrendPaths = 5;
 
+// Beacon sends commerce item CVR in percent units (0.59 means 0.59 %); every
+// other rate the tools return is a 0–1 ratio, so convert the value and the
+// previous value to match. `change` stays in percentage points, as its
+// `changeKind` says.
+function withItemCvrRatio(data: ReportRow): ReportRow {
+  const scoreCards = data.scoreCards as ReportRow | undefined;
+  const itemCvr = scoreCards?.item_cvr as ReportRow | undefined;
+  if (!itemCvr) return data;
+  const ratio = (value: unknown) => (typeof value === "number" ? value / 100 : value);
+  return {
+    ...data,
+    scoreCards: {
+      ...scoreCards,
+      item_cvr: { ...itemCvr, value: ratio(itemCvr.value), previousValue: ratio(itemCvr.previousValue) },
+    },
+  };
+}
+
 const inputFields = {
-  overview: ["interval", "filters"],
+  overview: ["interval", "includeTrend", "filters"],
   pages: [],
   page_trends: ["interval", "pagePaths", "pagePathLimit", "pagePathOffset"],
   sessions: ["interval", "includeTrend", "engagedEventNames"],
@@ -102,7 +120,9 @@ export function registerGetOverviewTool(server: McpServer) {
       const data = primary.data;
       const output = secondary
         ? { ...data, series: reportRows(secondary.data.series ?? secondary.data.points) }
-        : data;
+        : report === "overview" && includeTrend === false
+          ? Object.fromEntries(Object.entries(data).filter(([key]) => key !== "timeSeries"))
+          : report === "commerce" ? withItemCvrRatio(data) : data;
       const series = output.series ?? output.timeSeries ?? output.trend;
       if (Array.isArray(series) && series.length > 2000) {
         throw new Error("response-too-large: Choose a coarser interval or a shorter date range.");
