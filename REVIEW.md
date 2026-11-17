@@ -48,6 +48,11 @@ API with a token exchanged for each user.
 - A tool change without the `docs/report-coverage.md` and README updates.
 - Beacon errors passed to the client with internal detail.
 - An unexplained number for a limit, timeout or retry.
+- An endpoint change without the Postman update under `postman/` (CI warns on
+  a `routes.ts` change without one): comment on the changed route.
+- A PR over 400 changed lines, not counting lockfiles, snapshots and
+  generated files: the one P2 that isn't a defect. Comment once on its first
+  changed file and suggest how to split it.
 
 Rank a defect that isn't listed by comparing its impact with these examples.
 Only what doesn't change behaviour, security or reliability is a nit.
