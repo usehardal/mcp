@@ -3,7 +3,9 @@
 // Fails when a file or block copied from usehardal/harness was edited in this
 // repo: it compares each copy with the SHA-256 recorded in .harness/sync.json.
 // Edit the source in harness and run `node sync/sync.mjs` there instead.
-// On a pull request it also checks the branch name.
+// On a pull request it also checks the branch name, and warns about the PR's
+// size and a route change without the Postman collection.
+import { execFileSync } from "node:child_process";
 import console from "node:console";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -46,6 +48,74 @@ export function checkBranch(env = process.env) {
   return 1;
 }
 
+// The harness action plan's limit: past this many changed lines a PR is hard to
+// review. Over it, CI warns and never fails.
+export const PR_SIZE_LIMIT = 400;
+
+// Lockfiles, snapshots, generated OpenAPI documents and harness copies don't
+// count toward a PR's size.
+const NOT_COUNTED = [
+  /(^|\/)(bun\.lockb?|package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$/,
+  /\.snap$/,
+  /(^|\/)__snapshots__\//,
+  /(^|\/)openapi\/[^/]+\.json$/,
+  /^\.harness\//,
+];
+
+// Warnings for a PR's `git diff --numstat`, as [title, message] pairs. `synced`
+// lists the files harness copies into the repo; they don't count either.
+export function diffWarnings(numstat, synced = []) {
+  const changes = numstat
+    .split("\n")
+    .filter(Boolean)
+    .map((row) => {
+      const [added, deleted, path] = row.split("\t");
+      return { path, lines: added === "-" ? 0 : Number(added) + Number(deleted) };
+    });
+  const warnings = [];
+
+  const size = changes
+    .filter(({ path }) => !synced.includes(path) && !NOT_COUNTED.some((pattern) => pattern.test(path)))
+    .reduce((total, { lines }) => total + lines, 0);
+  if (size > PR_SIZE_LIMIT) {
+    warnings.push([
+      "PR size",
+      `This PR changes ${size} lines, not counting lockfiles, snapshots and generated files. ` +
+        `Over ${PR_SIZE_LIMIT} is hard to review; split it if you can.`,
+    ]);
+  }
+
+  const routes = changes.map(({ path }) => path).filter((path) => /(^|\/)routes\.ts$/.test(path));
+  if (routes.length > 0 && !changes.some(({ path }) => path.startsWith("postman/"))) {
+    warnings.push([
+      "Postman",
+      `This PR changes ${routes.join(", ")} but nothing under postman/. ` +
+        "An endpoint change updates the Postman collection in the same PR.",
+    ]);
+  }
+  return warnings;
+}
+
+// On a pull request, GITHUB_SHA is the merge commit and actions/checkout fetched
+// only that commit; one more level of history gives its first parent, the base.
+// Warnings never fail the check, and a diff that can't be read is only noted.
+export function warnOnDiff(env = process.env, synced = [], cwd = process.cwd()) {
+  if (!env.GITHUB_BASE_REF || !env.GITHUB_SHA) return;
+  let numstat;
+  try {
+    execFileSync("git", ["fetch", "--quiet", "--no-tags", "--depth=2", "origin", env.GITHUB_SHA], { cwd, stdio: "ignore" });
+    numstat = execFileSync("git", ["diff", "--numstat", "--no-renames", `${env.GITHUB_SHA}^1`, env.GITHUB_SHA], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+  } catch {
+    console.log("::notice title=PR size::Couldn't read this pull request's diff, so its size and Postman changes weren't checked.");
+    return;
+  }
+  for (const [title, message] of diffWarnings(numstat, synced)) console.log(`::warning title=${title}::${message}`);
+}
+
 function check(repoRoot) {
   const branchStatus = checkBranch();
 
@@ -55,6 +125,7 @@ function check(repoRoot) {
     return 1;
   }
   const state = JSON.parse(readFileSync(statePath, "utf8"));
+  warnOnDiff(process.env, Object.keys(state.files ?? {}), repoRoot);
   const problems = [];
 
   for (const [path, hash] of Object.entries(state.files ?? {})) {
