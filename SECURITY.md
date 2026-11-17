@@ -5,8 +5,8 @@
 Report a vulnerability privately: on this repository's **Security** tab, choose
 **Report a vulnerability**. Please don't open a public issue for it.
 
-The rest of this file guides Codex Security Review on every PR and anyone
-reviewing this repo for security. `REVIEW.md` sets the priorities.
+The rest of this file guides anyone reviewing a change here for security, a
+person or an AI reviewer. `REVIEW.md` sets the priorities.
 
 ## What this repo protects
 

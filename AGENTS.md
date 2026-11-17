@@ -107,6 +107,9 @@ P1 and P2 in this repo, what to skip, and the finding and summary format. Post
 only P0 and P1 findings as review comments. Stay read-only: don't edit, stage,
 commit, push or approve.
 
+For a security review, also follow [SECURITY.md](SECURITY.md): what this repo
+protects, its trust boundaries and the patterns to flag.
+
 <!-- BEGIN AGENTS.base.md: edit in harness, not here -->
 ## Working style
 
