@@ -16,5 +16,5 @@
 
 ## Postman and Grafana
 
-- [ ] No endpoint changed, or the Postman collection is updated in this PR
-- [ ] No new metric, or its Grafana panel is added in this PR
+- Endpoints: <!-- The endpoints added, changed or removed, and whether the Postman collection is updated in this PR; or "none". -->
+- Metrics and dashboards: <!-- The metrics and Grafana dashboards added or changed, and the panel for each new metric; or "none". -->
