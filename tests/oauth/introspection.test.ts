@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { config } from "../../src/config";
 import { introspectToken } from "../../src/oauth/introspection";
 import { resetDiscoveryCache } from "../../src/oauth/discovery";
 
@@ -78,5 +79,26 @@ describe("introspectToken", () => {
     introspectStatus = 401;
     introspectBody = { error: "invalid_client" };
     await expect(introspectToken("token-A")).rejects.toThrow(/introspection failed/);
+  });
+
+  it("gives up on a hung introspection endpoint at the auth timeout", async () => {
+    const configuredTimeout = config.oauth.authTimeoutMs;
+    config.oauth.authTimeoutMs = 50;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/.well-known/oauth-authorization-server")) {
+        return new Response(JSON.stringify(DISCOVERY), { status: 200 });
+      }
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("The operation timed out.", "TimeoutError"));
+        });
+      });
+    }) as typeof fetch;
+    try {
+      await expect(introspectToken("token-A")).rejects.toThrow(/timed out/);
+    } finally {
+      config.oauth.authTimeoutMs = configuredTimeout;
+    }
   });
 });

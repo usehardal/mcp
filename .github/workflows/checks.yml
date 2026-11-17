@@ -53,4 +53,11 @@ jobs:
             -H 'content-type: application/json' \
             -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
           [ "$mcp" = "401" ] || { echo "unauthenticated / returned $mcp, expected 401"; exit 1; }
-          echo "http smoke passed: /health 200, protected-resource metadata, / 401"
+          payload="$(mktemp)"
+          head -c 1300000 /dev/zero | tr '\0' 'x' > "$payload"
+          oversized=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://localhost:${PORT}/" \
+            -H 'content-type: application/json' \
+            --data-binary @"$payload")
+          rm -f "$payload"
+          [ "$oversized" = "413" ] || { echo "oversized / returned $oversized, expected 413"; exit 1; }
+          echo "http smoke passed: /health 200, protected-resource metadata, / 401, 1.3MB body 413"

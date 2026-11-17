@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { config } from "../../src/config";
 import { exchangeForReportsApiToken } from "../../src/oauth/token-exchange";
 import { resetDiscoveryCache } from "../../src/oauth/discovery";
 
@@ -63,5 +64,26 @@ describe("exchangeForReportsApiToken", () => {
     tokenStatus = 400;
     tokenBody = { error: "invalid_grant", error_description: "bad token" };
     await expect(exchangeForReportsApiToken("token-A")).rejects.toThrow(/token exchange failed: bad token/);
+  });
+
+  it("gives up on a hung token endpoint at the auth timeout", async () => {
+    const configuredTimeout = config.oauth.authTimeoutMs;
+    config.oauth.authTimeoutMs = 50;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/.well-known/oauth-authorization-server")) {
+        return new Response(JSON.stringify(DISCOVERY), { status: 200 });
+      }
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("The operation timed out.", "TimeoutError"));
+        });
+      });
+    }) as typeof fetch;
+    try {
+      await expect(exchangeForReportsApiToken("token-A")).rejects.toThrow(/timed out/);
+    } finally {
+      config.oauth.authTimeoutMs = configuredTimeout;
+    }
   });
 });
