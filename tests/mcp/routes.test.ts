@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { resetDiscoveryCache } from "../../src/oauth/discovery";
 import { resetExchangeCache } from "../../src/oauth/exchange-cache";
+import {
+  authorizationServerMetadata, beaconFixtureFetch, calls, commerce, compareArgs, counters,
+  paths, previewDefinition, range, reportScope, resetFixtureState, routeCases,
+  sourceId, sourceScope, tenantId,
+} from "./v1-fixtures";
 
 let introspectionResult: unknown = { active: false };
 
@@ -44,6 +49,20 @@ function activeTokenFor(resource: string, userId = "user-1") {
   };
 }
 
+async function callTool(token: string, name: string, args: Record<string, unknown>) {
+  const response = await post({ authorization: `Bearer ${token}` }, {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "tools/call",
+    params: { name, arguments: args },
+  });
+  expect(response.status).toBe(200);
+  const { result } = await response.json() as {
+    result: { isError?: boolean; content: Array<{ text: string }>; structuredContent?: { data: Record<string, any>; context: Record<string, any> } };
+  };
+  return result;
+}
+
 describe("POST / authentication", () => {
   it("rejects a request with no bearer token", async () => {
     introspectionResult = { active: false };
@@ -73,29 +92,6 @@ describe("POST / authentication", () => {
   });
 });
 
-const tenantId = "11111111-1111-4111-8111-111111111111";
-const compareArgs = {
-  tenantId,
-  currentStart: "2026-01-01",
-  currentEnd: "2026-01-31",
-  previousStart: "2025-12-01",
-  previousEnd: "2025-12-31",
-};
-
-async function callTool(token: string, name: string, args: Record<string, unknown>) {
-  const response = await post({ authorization: `Bearer ${token}` }, {
-    jsonrpc: "2.0",
-    id: 1,
-    method: "tools/call",
-    params: { name, arguments: args },
-  });
-  expect(response.status).toBe(200);
-  const { result } = await response.json() as {
-    result: { isError?: boolean; content: Array<{ text: string }>; structuredContent?: { data: Record<string, any>; context: Record<string, any> } };
-  };
-  return result;
-}
-
 describe("POST / report requests", () => {
   const configuredLimit = config.reports.rateLimitPerMinute;
 
@@ -117,15 +113,7 @@ describe("POST / report requests", () => {
     const beaconFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url === `${beacon}/.well-known/oauth-authorization-server`) {
-        return Response.json({
-          issuer: config.oauth.issuer,
-          token_endpoint: `${beacon}/oauth/token`,
-          introspection_endpoint: `${beacon}/oauth/introspect`,
-          authorization_endpoint: `${beacon}/oauth/authorize`,
-          registration_endpoint: `${beacon}/oauth/register`,
-          revocation_endpoint: `${beacon}/oauth/revoke`,
-          scopes_supported: ["reports:read"],
-        });
+        return Response.json(authorizationServerMetadata());
       }
       if (url === `${beacon}/oauth/token`) {
         const fields = new URLSearchParams(String(init?.body));
@@ -172,139 +160,96 @@ describe("POST / report requests", () => {
   });
 });
 
-const sourceId = "22222222-2222-4222-8222-222222222222";
-const funnelId = "33333333-3333-4333-8333-333333333333";
-const reportScope = {
-  tenantId, sourceId,
-  period: { startDate: "2026-04-01", endDate: "2026-04-07" },
-  timezone: "Europe/Berlin",
-};
-const savedScope = { tenantId, period: reportScope.period, timezone: reportScope.timezone };
-const sourceScope = { tenantId, sourceId };
-const range = { ...reportScope.period, timezone: reportScope.timezone };
-const paths = {
-  overview: "/reports/overview",
-  acquisition: "/reports/acquisition",
-  sessionsMetrics: "/reports/sessions/metrics",
-  sessionsTrends: "/reports/sessions/trends",
-  graphs: "/reports/ai-visibility/graphs",
-  items: "/reports/commerce/items",
-  itemDetails: "/reports/commerce/items/details",
-  summary: `/funnels/${funnelId}/summary`,
-  breakdown: `/funnels/${funnelId}/breakdown`,
-};
-const currency = { reportingCurrency: "TRY", status: "complete", excludedCount: 0 };
-const page = { pagePath: "/catalog", sessions: 9, consentedVisitors: 8 };
-const previewDefinition = {
-  steps: [
-    { stepOrder: 1, stepType: "page", stepValue: "/catalog/" + "p".repeat(2039) },
-    { stepOrder: 2, stepType: "event", stepValue: "purchase" },
-  ],
-  breakdowns: [],
-};
+describe("POST / runtime bounds", () => {
+  const configuredDeadline = config.reports.toolDeadlineMs;
+  const configuredWait = config.reports.concurrencyWaitMs;
+  const configuredUserCap = config.reports.userMaxInFlight;
 
-type BeaconCall = { path: string; method: string; query: URLSearchParams; body: unknown; bearer: string | null };
+  afterEach(() => {
+    config.reports.toolDeadlineMs = configuredDeadline;
+    config.reports.concurrencyWaitMs = configuredWait;
+    config.reports.userMaxInFlight = configuredUserCap;
+    resetDiscoveryCache();
+    resetExchangeCache();
+    mock.restore();
+  });
+
+  function slowBeaconFetch(reportDelayMs: number) {
+    const beacon = config.oauth.beaconApiUrl;
+    return (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === `${beacon}/.well-known/oauth-authorization-server`) return Response.json(authorizationServerMetadata());
+      if (url === `${beacon}/oauth/token`) return Response.json({ access_token: "delegated-slow", expires_in: 300 });
+      return new Promise<Response>((resolve, reject) => {
+        const timer = setTimeout(() => resolve(Response.json({ success: true, data: {} })), reportDelayMs);
+        init?.signal?.addEventListener("abort", () => {
+          clearTimeout(timer);
+          reject(new DOMException("The operation timed out.", "TimeoutError"));
+        });
+      });
+    }) as typeof fetch;
+  }
+
+  it("cuts a tool call at the deadline and answers with a retryable deadline-exceeded", async () => {
+    config.reports.toolDeadlineMs = 1000;
+    spyOn(globalThis, "fetch").mockImplementation(slowBeaconFetch(5000));
+    introspectionResult = activeTokenFor(config.oauth.mcpResource, "deadline-user");
+    const result = await callTool("deadline-token", "get_overview", { tenantId });
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("deadline-exceeded");
+    expect(JSON.parse(result.content[1]!.text)).toMatchObject({ ok: false, error: { code: "deadline-exceeded", retryable: true } });
+  }, 5000);
+
+  it("admits per tool call and answers tenant-busy when the user slots stay full", async () => {
+    config.reports.userMaxInFlight = 1;
+    config.reports.concurrencyWaitMs = 50;
+    spyOn(globalThis, "fetch").mockImplementation(slowBeaconFetch(300));
+    introspectionResult = activeTokenFor(config.oauth.mcpResource, "busy-user");
+    const [first, second] = await Promise.all([
+      callTool("busy-token", "get_overview", { tenantId }),
+      callTool("busy-token", "get_overview", { tenantId }),
+    ]);
+    expect([first, second].filter((result) => result.isError === true)).toHaveLength(1);
+    const busy = first.isError ? first : second;
+    expect(busy.content[0].text).toContain("tenant-busy");
+    expect(JSON.parse(busy.content[1]!.text)).toMatchObject({ ok: false, error: { code: "tenant-busy", retryable: true } });
+  }, 5000);
+
+  it.each([
+    ["get_overview", { ...reportScope, report: "sessions" }],
+    ["get_events", reportScope],
+    ["get_breakdown", { ...reportScope, report: "ai_visibility", dimension: "agentName" }],
+  ] as const)("rejects a %s series beyond 2,000 points after the response", async (tool, args) => {
+    const big = Array.from({ length: 2001 }, (_, index) => ({
+      date: "2026-04-01", value: index, visits: index, sessions: index, categoryValue: "crawler",
+    }));
+    const beacon = config.oauth.beaconApiUrl;
+    spyOn(globalThis, "fetch").mockImplementation((async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === `${beacon}/.well-known/oauth-authorization-server`) return Response.json(authorizationServerMetadata());
+      if (url === `${beacon}/oauth/token`) return Response.json({ access_token: "delegated-big", expires_in: 300 });
+      return Response.json({
+        success: true,
+        data: { range, series: big, points: big, timeSeries: big, metrics: {}, timelineEventOptions: [] },
+      });
+    }) as typeof fetch);
+    introspectionResult = activeTokenFor(config.oauth.mcpResource, `points-user-${tool}`);
+    const result = await callTool("points-token", tool, args);
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("response-too-large");
+  });
+});
 
 describe("MCP V1 report coverage", () => {
   const configuredSelectionKey = config.reports.selectionKey;
   const configuredLimit = config.reports.rateLimitPerMinute;
-  let calls: BeaconCall[];
-  let exchanges: number;
-  let commerceSettingsVersion: string;
-  let commerceItemKey: string;
 
   beforeEach(() => {
-    calls = [];
-    exchanges = 0;
-    commerceSettingsVersion = "a".repeat(64);
-    commerceItemKey = "internal-composite";
+    resetFixtureState();
     config.reports.selectionKey = Buffer.alloc(32, 73).toString("base64url");
     config.reports.rateLimitPerMinute = 300;
     introspectionResult = activeTokenFor(config.oauth.mcpResource, "coverage-user");
-    const beacon = config.oauth.beaconApiUrl;
-    const beaconFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      const rawUrl = String(input);
-      if (rawUrl === `${beacon}/.well-known/oauth-authorization-server`) {
-        return Response.json({
-          issuer: config.oauth.issuer,
-          token_endpoint: `${beacon}/oauth/token`,
-          introspection_endpoint: `${beacon}/oauth/introspect`,
-          authorization_endpoint: `${beacon}/oauth/authorize`,
-          registration_endpoint: `${beacon}/oauth/register`,
-          revocation_endpoint: `${beacon}/oauth/revoke`,
-          scopes_supported: ["reports:read"],
-        });
-      }
-      if (rawUrl === `${beacon}/oauth/token`) {
-        exchanges += 1;
-        return Response.json({ access_token: "delegated-fixture", expires_in: 300, scope: "reports:read" });
-      }
-      const resource = config.oauth.reportsApiResource;
-      if (!rawUrl.startsWith(`${resource}/`)) throw new Error(`Unexpected fixture URL: ${rawUrl}`);
-      const url = new URL(rawUrl);
-      const path = url.pathname.slice(new URL(resource).pathname.length);
-      const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
-      calls.push({
-        path, method: init?.method ?? "GET", query: url.searchParams, body,
-        bearer: new Headers(init?.headers).get("Authorization"),
-      });
-      const scores = url.searchParams.get("startDate") === "2026-03-25"
-        ? { sessions: { value: 0 }, conversions: { value: 5 } }
-        : { sessions: { value: 9 }, conversions: { value: 10 } };
-      const responses: Record<string, unknown> = {
-        "/workspace/access": { tenants: [] },
-        [paths.overview]: { range, scoreCards: { sessions: 9 }, pages: [page], sessionBreakdowns: { browsers: [{ value: "Chrome", sessions: 8 }] } },
-        "/reports/realtime": { windowMinutes: 12, consentedVisitors: 3, sessions: 4, events: 5 },
-        "/reports/pages/metrics": { range, metrics: { sessions: { current: 9, previous: 8 } } },
-        "/reports/pages/top": {
-          range, rows: [page],
-          attributionRows: Array.from({ length: 30 }, (_, index) => ({
-            ...page, campaign: `campaign-${url.searchParams.get("offset") ?? 0}-${index}`,
-          })),
-          pagination: { total: 72 },
-        },
-        "/reports/pages/entry-exit": { range, entryPages: [page], exitPages: [page] },
-        "/reports/pages/flow": { range, destinationPath: "/catalog", edges: [{ step: 1, from: "/", to: "/catalog", sessions: 7 }] },
-        "/reports/pages/time-series": {
-          range, interval: url.searchParams.get("interval"), pagePaths: ["/catalog"],
-          series: Number(url.searchParams.get("pagePathOffset")) > 0 && !body?.pagePaths
-            ? [] : [{ date: "2026-04-01", pagePath: "/catalog", pageViews: 8 }],
-        },
-        [paths.sessionsMetrics]: { range, metrics: { engagedSessions: { current: 8, previous: 7 } } },
-        [paths.sessionsTrends]: { range, series: [{ date: "2026-04-01", sessions: 9, engagedSessions: 8 }] },
-        "/reports/commerce": { range, currency, scoreCards: { orders: { value: 6 } } },
-        [paths.items]: { range, currency, rows: [{ itemKey: commerceItemKey, item_id: "sku-1", orders: 6 }], pagination: { total: 1 } },
-        [paths.itemDetails]: body?.kind === "group-items"
-          ? { range, currency, rows: [{ itemKey: "internal-child", item_id: "sku-2", orders: 3 }], pagination: { total: 1 } }
-          : { range, items: [{ itemKey: commerceItemKey, currency, rows: [{ source: "direct", orders: 6 }], pagination: { total: 1 } }] },
-        "/reports/ai-visibility": { range, scoreCards: { aiAgentVisits: 17 } },
-        [paths.graphs]: {
-          range, points: Array.from({ length: 30 }, (_, index) => ({
-            date: `2026-04-${String(index + 1).padStart(2, "0")}`, categoryValue: "crawler", visits: 17,
-          })),
-        },
-        "/reports/ai-visibility/page-report": { range, rows: [{ pagePath: "/catalog", agentName: "crawler", isAi: true, visits: 17 }] },
-        "/reports/ai-visibility/filter-options": { options: [{ value: "crawler", label: "crawler", count: 17 }] },
-        "/reports/events/overview": { range, metrics: { totalEvents: { current: 44, previous: 20 } }, timelineEventOptions: [{ eventName: "purchase" }] },
-        [paths.acquisition]: { range, controls: { trafficScope: "consented_traffic" }, scoreCards: scores, trafficDistribution: { rows: [{ source: "direct", sessions: 9 }], pagination: { total: 1 } } },
-        "/reports/acquisition/event-options": { items: [{ eventName: "purchase", eventLabel: "Purchase" }] },
-        "/reports/commerce/event-options": { items: [{ eventName: "purchase" }] },
-        "/funnels/options/events": { items: [{ eventName: "purchase", eventLabel: "Purchase" }] },
-        "/funnels/options/pages": { items: [{ pagePath: "/catalog" }] },
-        "/funnels/options/breakdowns": { items: [{ breakdownKey: "source", breakdownLabel: "Source" }] },
-        "/funnels": { items: [{ funnelId, funnelName: "Checkout" }], total: 1 },
-        [`/funnels/${funnelId}`]: { funnelId, funnelName: "Checkout", sourceId },
-        [paths.summary]: { range, funnelSummary: { entryCount: 9, completedCount: 3 } },
-        [paths.breakdown]: { range, breakdownTable: { rows: [{ breakdownValues: { source: "direct" }, stepCounts: [9, 3] }] } },
-        "/funnels/preview": { range, steps: [{ stepOrder: 1, stepLabel: "Catalog", value: 9, unexpected: "private" }] },
-      };
-      if (!(path in responses)) throw new Error(`Missing Beacon fixture for ${path}`);
-      const meta = path === paths.items || path === paths.itemDetails
-        ? { reportSettingsVersion: commerceSettingsVersion }
-        : undefined;
-      return Response.json({ success: true, data: responses[path], meta });
-    }) as typeof fetch;
-    spyOn(globalThis, "fetch").mockImplementation(beaconFetch);
+    spyOn(globalThis, "fetch").mockImplementation(beaconFixtureFetch());
   });
 
   afterEach(() => {
@@ -314,35 +259,6 @@ describe("MCP V1 report coverage", () => {
     resetExchangeCache();
     mock.restore();
   });
-
-  const routeCases: Array<[string, Record<string, unknown>, string[]]> = [
-    ["get_context", {}, ["/workspace/access"]],
-    ["get_overview", reportScope, [paths.overview]],
-    ["get_overview", { ...sourceScope, report: "realtime", windowMinutes: 12 }, ["/reports/realtime"]],
-    ["get_overview", { ...reportScope, report: "pages" }, ["/reports/pages/metrics"]],
-    ["get_overview", { ...reportScope, report: "sessions", engagedEventNames: ["purchase"] }, [paths.sessionsMetrics, paths.sessionsTrends]],
-    ["get_overview", { ...reportScope, report: "commerce" }, ["/reports/commerce"]],
-    ["get_overview", { ...reportScope, report: "ai_visibility", filters: { isAi: true } }, ["/reports/ai-visibility", paths.graphs]],
-    ["get_breakdown", { ...reportScope, report: "overview", dimension: "browsers" }, [paths.overview]],
-    ["get_breakdown", { ...reportScope, dimension: "acquisition" }, [paths.acquisition]],
-    ["get_breakdown", { ...reportScope, report: "pages", dimension: "top" }, ["/reports/pages/top"]],
-    ["get_breakdown", { ...reportScope, report: "pages", dimension: "attribution" }, ["/reports/pages/top"]],
-    ["get_breakdown", { ...reportScope, report: "pages", dimension: "entry" }, ["/reports/pages/entry-exit"]],
-    ["get_breakdown", { ...reportScope, report: "pages", dimension: "exit" }, ["/reports/pages/entry-exit"]],
-    ["get_breakdown", { ...reportScope, report: "pages", dimension: "flow" }, ["/reports/pages/flow"]],
-    ["get_breakdown", { ...reportScope, report: "ai_visibility", dimension: "agentName" }, [paths.graphs]],
-    ["get_breakdown", { ...reportScope, report: "ai_visibility", dimension: "pageAgent", filters: { isAi: true, pagePath: "/catalog" } }, ["/reports/ai-visibility/page-report"]],
-    ["get_breakdown", { ...reportScope, mode: "options", target: "ai_visibility", dimension: "pagePath" }, ["/reports/ai-visibility/filter-options"]],
-    ["get_breakdown", { ...reportScope, mode: "options", target: "funnel_pages" }, ["/funnels/options/pages"]],
-    ["get_breakdown", { tenantId, mode: "options", target: "funnel_breakdowns" }, ["/funnels/options/breakdowns"]],
-    ["get_events", reportScope, ["/reports/events/overview"]],
-    ["get_events", { ...reportScope, mode: "options", target: "acquisition" }, ["/reports/acquisition/event-options"]],
-    ["get_events", { ...reportScope, mode: "options", target: "commerce" }, ["/reports/commerce/event-options"]],
-    ["get_events", { ...sourceScope, mode: "options", target: "funnel", search: "purchase" }, ["/funnels/options/events"]],
-    ["get_funnels", sourceScope, ["/funnels"]],
-    ["get_funnels", { tenantId, mode: "metadata", funnelId }, [`/funnels/${funnelId}`]],
-    ["get_funnels", { ...savedScope, funnelId, breakdown: { keys: ["source"] } }, [paths.summary, paths.breakdown]],
-  ];
 
   it.each(routeCases)("routes %s %j to the expected Beacon GET operations", async (tool, args, expectedPaths) => {
     const result = await callTool("coverage-token", tool, args);
@@ -378,7 +294,7 @@ describe("MCP V1 report coverage", () => {
     const second = await callTool("coverage-token", "get_breakdown", { ...args, offset: 20 });
     expect(calls.map(({ query }) => [query.get("limit"), query.get("offset")])).toEqual([["10", "5"], ["10", "5"]]);
     expect(first.structuredContent?.data.report).toMatchObject({
-      pagination: { offset: 0, returnedRows: 20, hasMore: true },
+      pagination: { offset: 0, returnedRows: 20, hasMore: true, truncated: true },
       topPagesPagination: { offset: 5, limit: 10, total: 72 },
     });
     const report = second.structuredContent?.data.report as { rows: unknown[] };
@@ -499,7 +415,7 @@ describe("MCP V1 report coverage", () => {
       expect(result.isError).toBe(true);
     }
     expect(calls).toHaveLength(0);
-    expect(exchanges).toBe(0);
+    expect(counters.exchanges).toBe(0);
   });
 
   it("preserves an explicit empty Acquisition conversion selection", async () => {
@@ -518,7 +434,7 @@ describe("MCP V1 report coverage", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain("unsupported-filter: filter is unsupported for acquisition period comparison");
     expect(calls).toHaveLength(0);
-    expect(exchanges).toBe(0);
+    expect(counters.exchanges).toBe(0);
   });
 
   it.each(["review,event", "[review]"])("rejects ambiguous event name %s before contacting Beacon", async (name) => {
@@ -537,7 +453,7 @@ describe("MCP V1 report coverage", () => {
       expect(result.content[0]?.text).toContain("Event names cannot contain commas or start with an opening bracket");
     }
     expect(calls).toHaveLength(0);
-    expect(exchanges).toBe(0);
+    expect(counters.exchanges).toBe(0);
   });
 
   it("computes Acquisition period changes and preserves a zero comparison value", async () => {
@@ -584,7 +500,7 @@ describe("MCP V1 report coverage", () => {
     const options = { ...reportScope, report: "commerce" };
     const list = await callTool("coverage-token", "get_breakdown", { ...options, dimension: "items" });
     const report = list.structuredContent?.data.report as { rows: Array<{ selectionId: string }> };
-    commerceSettingsVersion = "b".repeat(64);
+    commerce.settingsVersion = "b".repeat(64);
     const detail = await callTool("coverage-token", "get_breakdown", {
       ...options, dimension: "attribution", selectionId: report.rows[0]!.selectionId,
     });
@@ -596,7 +512,7 @@ describe("MCP V1 report coverage", () => {
 
   it("round-trips a long Commerce selection using the advertised input schema", async () => {
     const options = { ...reportScope, report: "commerce" };
-    commerceItemKey = "\u0001".repeat(8192);
+    commerce.itemKey = "\u0001".repeat(8192);
     const list = await callTool("coverage-token", "get_breakdown", { ...options, dimension: "items" });
     const report = list.structuredContent?.data.report as { rows: Array<{ selectionId: string }> };
     const selectionId = report.rows[0]!.selectionId;
@@ -604,7 +520,7 @@ describe("MCP V1 report coverage", () => {
     expect(selectionId.length).toBeLessThanOrEqual(72_000);
     const detail = await callTool("coverage-token", "get_breakdown", { ...options, dimension: "attribution", selectionId });
     expect(detail.isError).toBeUndefined();
-    expect(calls[1]?.body).toMatchObject({ itemKeys: [commerceItemKey] });
+    expect(calls[1]?.body).toMatchObject({ itemKeys: [commerce.itemKey] });
   });
 
   it("uses opaque, credential-bound Commerce selections for both drill-down variants", async () => {
