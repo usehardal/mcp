@@ -70,13 +70,16 @@ Most severe first.
   `src/reports/client.ts`: they check the user, apply the rate limits,
   exchange the token with `exchangeReportsApiToken` and build the URL.
 - Wrap every tool handler in `guard()` from `src/tools/output/result.ts`.
-- Return errors as `ToolFailure` with a fixed message, or a coded message that
-  `toolFailure()` in `src/tools/output/errors.ts` converts.
+- Return errors as `ToolFailure` with a fixed literal message. `toolFailure()`
+  in `src/tools/output/errors.ts` passes a coded message's text to the client
+  as is, so a coded message must be a literal too, never built from an upstream
+  error, a token or user data.
 - Seal and open Commerce selections with `sealItemSelection` and
   `openItemSelection`.
 
 ## Out of scope
 
-Tests and their stubs under `tests/`, including the throwaway signing key from
-`tests/setup.ts`, and the local defaults in `src/config/env.ts` and
-`.env.example`.
+The stubbed `fetch` and Beacon responses in `tests/`, the throwaway signing key
+from `tests/setup.ts`, and the local defaults in `src/config/env.ts` and
+`.env.example`. A test that calls a real Beacon, or a committed secret, is in
+scope.
