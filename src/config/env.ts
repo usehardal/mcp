@@ -22,6 +22,10 @@ export const envSchema = z.object({
   SERVICE_CLIENT_ID: z.string().min(1).default("hardal-mcp"),
   SERVICE_PRIVATE_JWK_PATH: z.string().optional(),
   SERVICE_PRIVATE_JWK_VAULT_URL: z.string().url().optional(),
+
+  POSTHOG_ENABLED: z.enum(["true", "false"]).default("false"),
+  POSTHOG_PROJECT_TOKEN: z.string().optional(),
+  POSTHOG_HOST: z.string().url().default("https://eu.i.posthog.com"),
 });
 
 export type AppConfig = ReturnType<typeof loadEnv>;
@@ -70,6 +74,11 @@ export function loadEnv() {
       clientId: env.SERVICE_CLIENT_ID,
       privateJwkPath: env.SERVICE_PRIVATE_JWK_PATH,
       privateJwkVaultUrl: env.SERVICE_PRIVATE_JWK_VAULT_URL,
+    },
+    analytics: {
+      enabled: env.POSTHOG_ENABLED === "true",
+      projectToken: env.POSTHOG_PROJECT_TOKEN || undefined,
+      host: env.POSTHOG_HOST,
     },
   };
 }

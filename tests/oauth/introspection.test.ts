@@ -50,6 +50,9 @@ describe("introspectToken", () => {
       aud: "http://localhost:1922",
       exp: 1900000000,
       tenant_ids: ["tenant-1"],
+      tenant_organizations: { "tenant-1": "org-1" },
+      is_internal: true,
+      client_name: "Claude",
     };
     const result = await introspectToken("token-A");
     expect(result.active).toBe(true);
@@ -58,11 +61,20 @@ describe("introspectToken", () => {
       expect(result.clientId).toBe("client-1");
       expect(result.scopes).toEqual(["reports:read"]);
       expect(result.tenantIds).toEqual(["tenant-1"]);
+      expect(result.tenantOrganizations).toEqual({ "tenant-1": "org-1" });
+      expect(result.isInternal).toBe(true);
+      expect(result.clientName).toBe("Claude");
       expect(result.resource).toBe("http://localhost:1922");
       expect(result.expiresAt).toBe(1900000000);
     }
     expect(lastBody).toContain("token=token-A");
     expect(lastBody).toContain("client_assertion=");
+  });
+
+  it("treats missing analytics fields from an older Beacon as unknown", async () => {
+    introspectBody = { active: true, sub: "user-1", aud: "http://localhost:1922", tenant_ids: ["tenant-1"] };
+    const result = await introspectToken("token-A");
+    expect(result.active && [result.tenantOrganizations, result.isInternal, result.clientName]).toEqual([{}, false, null]);
   });
 
   it("treats an inactive token as not active", async () => {

@@ -11,6 +11,9 @@ export type IntrospectionResult =
       clientId: string | null;
       scopes: string[];
       tenantIds: string[];
+      tenantOrganizations: Record<string, string>;
+      isInternal: boolean;
+      clientName: string | null;
       resource: string | null;
       expiresAt: number | null;
     };
@@ -23,6 +26,9 @@ type IntrospectionResponse = {
   aud?: string | null;
   exp?: number | null;
   tenant_ids?: string[];
+  tenant_organizations?: Record<string, string>;
+  is_internal?: boolean;
+  client_name?: string | null;
 };
 
 export async function introspectToken(token: string): Promise<IntrospectionResult> {
@@ -55,6 +61,9 @@ export async function introspectToken(token: string): Promise<IntrospectionResul
     clientId: body.client_id ?? null,
     scopes: body.scope ? body.scope.split(" ").filter((scope) => scope.length > 0) : [],
     tenantIds: body.tenant_ids ?? [],
+    tenantOrganizations: body.tenant_organizations ?? {},
+    isInternal: body.is_internal === true,
+    clientName: body.client_name ?? null,
     resource: body.aud ?? null,
     expiresAt: body.exp ?? null,
   };

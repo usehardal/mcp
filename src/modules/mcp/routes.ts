@@ -58,7 +58,13 @@ export const mcpRoutes = new Elysia().all("/", async ({ request, body }) => {
     clientId: introspection.clientId ?? "",
     scopes: introspection.scopes,
     expiresAt: introspection.expiresAt ?? undefined,
-    extra: { userId: introspection.userId, tenantIds: introspection.tenantIds },
+    extra: {
+      userId: introspection.userId,
+      tenantIds: introspection.tenantIds,
+      tenantOrganizations: introspection.tenantOrganizations,
+      isInternal: introspection.isInternal,
+      clientName: introspection.clientName,
+    },
   };
 
   const server = createMcpServer();
