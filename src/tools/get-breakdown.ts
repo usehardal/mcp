@@ -215,21 +215,27 @@ async function readBreakdown(
     }
     return reportResult(data, { scope, filters, fields, context });
   }
-  const entries = reportRows(pathValue(data, rows));
+  const upstreamRows = reportRows(pathValue(data, rows));
+  const entries = report === "overview" && (dimension === "countries" || dimension === "cities")
+    ? [...upstreamRows].sort((left, right) => Number(right.sessions ?? 0) - Number(left.sessions ?? 0))
+    : upstreamRows;
   const effectiveLimit = dimension === "entry" || dimension === "exit" ? (input.limit ?? 5) : limit;
   const upstreamPage = data.pagination as ReportRow | undefined;
   const total = serverPaged && typeof upstreamPage?.total === "number" ? upstreamPage.total : null;
   if (rows[0] === "points") {
-    if (entries.length > 2000) throw new Error("response-too-large: Use a coarser interval or shorter range.");
-    const points = entries.map((entry) => pickFields(entry, ["date", "visits", "categoryValue"]));
+    const allPoints = entries.map((entry) => pickFields(entry, ["date", "visits", "categoryValue"]));
     const categoryVisits = new Map<string, number | null>();
-    for (const { categoryValue, visits } of points) {
+    for (const { categoryValue, visits } of allPoints) {
       if (typeof categoryValue !== "string" || !categoryValue) continue;
       const current = categoryVisits.get(categoryValue);
       categoryVisits.set(categoryValue, typeof visits === "number" && current !== null ? (current ?? 0) + visits : null);
     }
-    const categories = Array.from(categoryVisits, ([value, visits]) => ({ value, visits }));
+    const categories = Array.from(categoryVisits, ([value, visits]) => ({ value, visits }))
+      .sort((left, right) => (right.visits ?? -1) - (left.visits ?? -1));
     const page = pageRows(categories, limit, offset, false);
+    const selected = new Set(page.rows.map((row) => row.value));
+    const points = allPoints.filter((point) => selected.has(point.categoryValue as string));
+    if (points.length > 2000) throw new Error("response-too-large: Use a coarser interval or shorter range.");
     return reportResult({ points, ...page }, { scope, filters, fields, context: { ...context, pagination: page.pagination } });
   }
   if (dimension === "attribution") {

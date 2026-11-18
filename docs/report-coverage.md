@@ -7,16 +7,16 @@ For calendar reports, common scope means an authorized tenant, optional source, 
 | MCP tool and variant | Beacon operation | Supported inputs beyond common scope | Result |
 | --- | --- | --- | --- |
 | `get_context` | `GET /v1/workspace/access` | Limit, offset | Authorized tenants, organizations, sources and reporting currency (`null` when the tenant has none) |
-| `get_overview` overview | `GET /v1/reports/overview` | Interval, path, channel, marketing source, device, OS, country, city, event name | Scorecards, previous scorecards and aggregate time series |
+| `get_overview` overview | `GET /v1/reports/overview` | Interval, optional includeTrend, path, channel, marketing source, device, OS, country, city, event name | Scorecards, previous scorecards and aggregate time series (left out when `includeTrend` is false) |
 | `get_overview` realtime | `GET /v1/reports/realtime` | Tenant, optional source, window of 1 to 60 minutes | Rolling visitor, session and event counts |
 | `get_overview` pages | `GET /v1/reports/pages/metrics` | Common scope | Current and previous page metrics |
 | `get_overview` page_trends | `POST /v1/reports/pages/time-series` | Interval, up to 8 page paths, page path limit and offset | Page path catalog and per-path time series |
 | `get_overview` sessions | `GET /v1/reports/sessions/metrics` | Engaged event names | Session and engagement metric comparisons |
 | `get_overview` sessions trend | `GET /v1/reports/sessions/trends` | Engaged event names, interval, optional includeTrend | Aggregate session and engagement time series |
-| `get_overview` commerce | `GET /v1/reports/commerce` | Interval | Revenue, orders, AOV, item metrics, trends and top channels/sources |
+| `get_overview` commerce | `GET /v1/reports/commerce` | Interval | Revenue, orders, AOV, item metrics, trends and top channels/sources. Item CVR `value` and `previousValue` are 0–1 ratios like the other rates (Beacon sends percent); its `change` stays in percentage points |
 | `get_overview` ai_visibility | `GET /v1/reports/ai-visibility` | AI toggle, agent type/name/platform/category, page path | AI Visibility scorecards |
-| `get_overview` ai_visibility trend, `get_breakdown` agentName/agentPlatform/agentCategory/pagePath | `GET /v1/reports/ai-visibility/graphs` | Same AI filters, interval and graph dimension for breakdown | Full time series within the point budget, with separately paginated category totals for breakdowns |
-| `get_breakdown` overview | `GET /v1/reports/overview` | Overview filters, limit/offset and channels, sources, countries, cities, devices, browsers, operating systems or pages | Selected aggregate breakdown |
+| `get_overview` ai_visibility trend, `get_breakdown` agentName/agentPlatform/agentCategory/pagePath | `GET /v1/reports/ai-visibility/graphs` | Same AI filters, interval and graph dimension for breakdown | Full time series within the point budget. Breakdowns rank categories by total visits over the range, paginate them, and return points only for the returned categories |
+| `get_breakdown` overview | `GET /v1/reports/overview` | Overview filters, limit/offset and channels, sources, countries, cities, devices, browsers, operating systems or pages | Selected aggregate breakdown; countries and cities are ranked by sessions, as on the dashboard |
 | `get_breakdown` acquisition | `GET /v1/reports/acquisition` | Attribution, consent, event metrics, AI focus, one distribution filter, breakdown/group, columns, sorting and pagination | Scorecards, traffic and distribution |
 | `compare_periods` acquisition | `GET /v1/reports/acquisition` | Attribution, consent, event metrics and AI focus | Both effective periods and absolute/relative changes in Acquisition scorecards |
 | `compare_periods` overview | `GET /v1/reports/overview` | Overview filters, previous period, previous year or explicit comparison dates | Both effective periods and absolute/relative metric changes |
