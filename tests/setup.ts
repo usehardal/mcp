@@ -30,3 +30,5 @@ delete process.env.SERVICE_PRIVATE_JWK_VAULT_URL;
 process.env.SERVICE_PRIVATE_JWK_PATH = privatePath;
 process.env.TEST_SERVICE_PUBLIC_JWK_PATH = publicPath;
 process.env.SERVICE_CLIENT_ID = "hardal-mcp";
+// Tests never send usage analytics, whatever the local environment file says.
+process.env.POSTHOG_ENABLED = "false";

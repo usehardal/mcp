@@ -98,6 +98,8 @@ In production the service private key lives in Azure Key Vault (`SERVICE_PRIVATE
 
 Every tool returns aggregates only — counts, totals, rankings, time series — never per-visitor records, so no personal data passes through this server. Access is read-only and scoped to the workspaces you approve.
 
+To see how the server is used, it sends usage metadata to Hardal's product analytics (PostHog): which tool was called, how long it took, the error code when it failed, the argument names, the AI app and MCP client, and your Hardal user, workspace and organization IDs. Argument values, report data, error text and your conversation are never sent. Usage analytics is off unless `POSTHOG_ENABLED` and `POSTHOG_PROJECT_TOKEN` are set.
+
 Questions or a vulnerability to report: **support@usehardal.com**.
 
 ## License
