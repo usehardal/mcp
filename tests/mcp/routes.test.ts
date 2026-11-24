@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { resetDiscoveryCache } from "../../src/oauth/discovery";
 import { resetExchangeCache } from "../../src/oauth/exchange-cache";
+import * as introspection from "../../src/oauth/introspection";
 import {
   authorizationServerMetadata, beaconFixtureFetch, calls, commerce, compareArgs, counters,
   paths, previewDefinition, range, reportScope, resetFixtureState, routeCases,
@@ -8,11 +9,6 @@ import {
 } from "./v1-fixtures";
 
 let introspectionResult: unknown = { active: false };
-
-mock.module("../../src/oauth/introspection", () => ({
-  introspectToken: async () => introspectionResult,
-}));
-
 const { mcpRoutes } = await import("../../src/modules/mcp/routes");
 const { config } = await import("../../src/config");
 
@@ -62,6 +58,12 @@ async function callTool(token: string, name: string, args: Record<string, unknow
   };
   return result;
 }
+
+beforeEach(() => {
+  spyOn(introspection, "introspectToken").mockImplementation(async () =>
+    introspectionResult as Awaited<ReturnType<typeof introspection.introspectToken>>
+  );
+});
 
 describe("POST / authentication", () => {
   it("rejects a request with no bearer token", async () => {
